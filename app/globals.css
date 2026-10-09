@@ -24,3 +24,24 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+@theme {
+  --color-creme: #f4e4d9;
+  --color-noir: #111111;
+  --color-or: #c9a24b;
+  --color-or-fonce: #a8832f;
+  --color-brun: #6b5646;
+
+  /* L'espace admin reprend les couleurs de la boutique */
+  --color-orange-100: #f3e7c8;
+  --color-orange-400: #d9b863;
+  --color-orange-500: #c9a24b;
+  --color-orange-600: #a8832f;
+  --color-orange-700: #7a5f1d;
+  --color-slate-100: #f4e4d9;
+  --color-slate-200: #e9d3c3;
+  --color-slate-300: #d8c3b2;
+  --color-slate-400: #b9a99a;
+  --color-slate-600: #3a3a3a;
+  --color-slate-700: #2b2b2b;
+  --color-slate-900: #111111;
+}

@@ -24,6 +24,30 @@ type LignePanier = {
 
 type Profil = { nom: string; telephone: string; lieu: string | null };
 
+type Avis = {
+  id: number;
+  product_id: number;
+  etoiles: number;
+  commentaire: string | null;
+  auteur: string | null;
+  created_at: string;
+};
+
+function Etoiles({ note, taille = "text-base" }: { note: number; taille?: string }) {
+  return (
+    <span className={taille} aria-label={`${note} sur 5`}>
+      {[1, 2, 3, 4, 5].map((n) => (
+        <span
+          key={n}
+          className={n <= Math.round(note) ? "text-or" : "text-gray-300"}
+        >
+          ★
+        </span>
+      ))}
+    </span>
+  );
+}
+
 export default function Home() {
   const [produits, setProduits] = useState<Produit[]>([]);
   const [chargement, setChargement] = useState(true);
@@ -41,6 +65,9 @@ export default function Home() {
   const [erreurCommande, setErreurCommande] = useState("");
   const [enCours, setEnCours] = useState(false);
 
+  const [avis, setAvis] = useState<Avis[]>([]);
+  const [produitAvis, setProduitAvis] = useState<Produit | null>(null);
+
   useEffect(() => {
     supabase
       .from("products")
@@ -51,6 +78,15 @@ export default function Home() {
         setProduits((data as Produit[]) || []);
         setChargement(false);
       });
+  }, []);
+
+  // Charger les avis de tous les clients
+  useEffect(() => {
+    supabase
+      .from("reviews")
+      .select("id, product_id, etoiles, commentaire, auteur, created_at")
+      .order("created_at", { ascending: false })
+      .then(({ data }) => setAvis((data as Avis[]) || []));
   }, []);
 
   useEffect(() => {
@@ -67,7 +103,6 @@ export default function Home() {
     }
   }, [panier, panierCharge]);
 
-  // Savoir si le client est connecté
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       setUserId(data.session?.user.id ?? null);
@@ -80,7 +115,6 @@ export default function Home() {
     return () => abonnement.subscription.unsubscribe();
   }, []);
 
-  // Récupérer son profil (nom, téléphone, lieu)
   useEffect(() => {
     if (!userId) {
       setProfil(null);
@@ -100,6 +134,13 @@ export default function Home() {
         }
       });
   }, [userId]);
+
+  function statsProduit(id: number) {
+    const liste = avis.filter((a) => a.product_id === id);
+    const nb = liste.length;
+    const moyenne = nb ? liste.reduce((s, a) => s + a.etoiles, 0) / nb : 0;
+    return { nb, moyenne, liste };
+  }
 
   function choisir(id: number, champ: "pointure" | "couleur", valeur: string) {
     setChoix((prev) => ({ ...prev, [id]: { ...prev[id], [champ]: valeur } }));
@@ -159,7 +200,6 @@ export default function Home() {
 
     setEnCours(true);
 
-    // 1. Enregistrer la commande
     const articles = panier.map((l) => ({
       produit_id: Number(l.cle.split("-")[0]),
       nom: l.nom,
@@ -190,7 +230,6 @@ export default function Home() {
       return;
     }
 
-    // 2. Préparer le message WhatsApp
     const lignes = panier.map((l, i) => {
       const details = [
         `*${i + 1}. ${l.nom}*`,
@@ -212,7 +251,6 @@ export default function Home() {
       `━━━━━━━━━━━━\n\n` +
       `Merci de me confirmer la disponibilité, le prix de la livraison et le mode de paiement. 🙏`;
 
-    // 3. Vider le panier et ouvrir WhatsApp
     localStorage.removeItem("panier");
     setPanier([]);
     setEnCours(false);
@@ -275,70 +313,96 @@ export default function Home() {
         )}
 
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {produits.map((p) => (
-            <div
-              key={p.id}
-              className="bg-white rounded-2xl shadow border border-or/30 overflow-hidden flex flex-col"
-            >
-              {p.photos?.[0] ? (
-                <img
-                  src={p.photos[0]}
-                  alt={p.nom}
-                  className="w-full h-44 md:h-56 object-cover"
-                />
-              ) : (
-                <div className="w-full h-44 md:h-56 bg-creme" />
-              )}
-
-              <div className="p-3 flex flex-col flex-1">
-                <h3 className="font-semibold">{p.nom}</h3>
-                <p className="font-bold text-or-fonce text-lg">
-                  {p.prix} FCFA
-                </p>
-
-                {p.pointures?.length > 0 && (
-                  <select
-                    className={selecteur}
-                    defaultValue=""
-                    onChange={(e) => choisir(p.id, "pointure", e.target.value)}
-                  >
-                    <option value="" disabled>
-                      Pointure
-                    </option>
-                    {p.pointures.map((x) => (
-                      <option key={x} value={x}>
-                        {x}
-                      </option>
-                    ))}
-                  </select>
+          {produits.map((p) => {
+            const s = statsProduit(p.id);
+            return (
+              <div
+                key={p.id}
+                className="bg-white rounded-2xl shadow border border-or/30 overflow-hidden flex flex-col"
+              >
+                {p.photos?.[0] ? (
+                  <img
+                    src={p.photos[0]}
+                    alt={p.nom}
+                    className="w-full h-44 md:h-56 object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-44 md:h-56 bg-creme" />
                 )}
 
-                {p.couleurs?.length > 0 && (
-                  <select
-                    className={selecteur}
-                    defaultValue=""
-                    onChange={(e) => choisir(p.id, "couleur", e.target.value)}
-                  >
-                    <option value="" disabled>
-                      Couleur
-                    </option>
-                    {p.couleurs.map((x) => (
-                      <option key={x} value={x}>
-                        {x}
-                      </option>
-                    ))}
-                  </select>
-                )}
+                <div className="p-3 flex flex-col flex-1">
+                  <h3 className="font-semibold">{p.nom}</h3>
+                  <p className="font-bold text-or-fonce text-lg">
+                    {p.prix} FCFA
+                  </p>
 
-                <button
-                  onClick={() => ajouter(p)}
-                  className="bg-noir hover:bg-black/80 text-or font-semibold rounded-lg w-full mt-3 py-2"
-                >
-                  Ajouter au panier
-                </button>
+                  {s.nb > 0 ? (
+                    <button
+                      onClick={() => setProduitAvis(p)}
+                      className="flex flex-wrap items-center gap-1 text-sm mt-1 text-left"
+                    >
+                      <Etoiles note={s.moyenne} />
+                      <span className="font-semibold">
+                        {s.moyenne.toFixed(1).replace(".", ",")}
+                      </span>
+                      <span className="text-brun underline">
+                        ({s.nb} avis)
+                      </span>
+                    </button>
+                  ) : (
+                    <p className="text-xs text-brun mt-1">
+                      Pas encore d&apos;avis
+                    </p>
+                  )}
+
+                  {p.pointures?.length > 0 && (
+                    <select
+                      className={selecteur}
+                      defaultValue=""
+                      onChange={(e) =>
+                        choisir(p.id, "pointure", e.target.value)
+                      }
+                    >
+                      <option value="" disabled>
+                        Pointure
+                      </option>
+                      {p.pointures.map((x) => (
+                        <option key={x} value={x}>
+                          {x}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+
+                  {p.couleurs?.length > 0 && (
+                    <select
+                      className={selecteur}
+                      defaultValue=""
+                      onChange={(e) =>
+                        choisir(p.id, "couleur", e.target.value)
+                      }
+                    >
+                      <option value="" disabled>
+                        Couleur
+                      </option>
+                      {p.couleurs.map((x) => (
+                        <option key={x} value={x}>
+                          {x}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+
+                  <button
+                    onClick={() => ajouter(p)}
+                    className="bg-noir hover:bg-black/80 text-or font-semibold rounded-lg w-full mt-3 py-2"
+                  >
+                    Ajouter au panier
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         <footer className="mt-12 mb-6 text-center text-sm text-brun">
@@ -348,6 +412,67 @@ export default function Home() {
           <p className="mt-1">Livraison rapide · Authenticité garantie</p>
         </footer>
       </main>
+
+      {/* Fenêtre des avis */}
+      {produitAvis && (
+        <div
+          className="fixed inset-0 bg-black/60 flex items-end md:items-center justify-center z-50"
+          onClick={() => setProduitAvis(null)}
+        >
+          <div
+            className="bg-creme w-full max-w-md max-h-[85vh] overflow-y-auto rounded-t-2xl md:rounded-2xl p-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {(() => {
+              const s = statsProduit(produitAvis.id);
+              return (
+                <>
+                  <div className="flex justify-between items-start mb-3">
+                    <div>
+                      <h2 className="text-xl font-bold">{produitAvis.nom}</h2>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Etoiles note={s.moyenne} taille="text-2xl" />
+                        <span className="font-bold text-lg">
+                          {s.moyenne.toFixed(1).replace(".", ",")}/5
+                        </span>
+                      </div>
+                      <p className="text-sm text-brun">
+                        {s.nb} avis de clients
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setProduitAvis(null)}
+                      className="text-3xl leading-none"
+                    >
+                      ×
+                    </button>
+                  </div>
+
+                  {s.liste.map((a) => (
+                    <div
+                      key={a.id}
+                      className="bg-white rounded-xl border border-or/20 p-3 mb-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <Etoiles note={a.etoiles} />
+                        <span className="text-xs text-brun">
+                          {new Date(a.created_at).toLocaleDateString("fr-FR")}
+                        </span>
+                      </div>
+                      <p className="text-sm font-semibold mt-1">
+                        {a.auteur || "Client"}
+                      </p>
+                      {a.commentaire && (
+                        <p className="text-sm mt-1">{a.commentaire}</p>
+                      )}
+                    </div>
+                  ))}
+                </>
+              );
+            })()}
+          </div>
+        </div>
+      )}
 
       {/* Panier */}
       {panierOuvert && (
