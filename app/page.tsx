@@ -423,7 +423,7 @@ export default function Home() {
                       panier sera gardé.
                     </p>
                     <a
-                      href="/compte"
+                      href="/compte?retour=panier"
                       className="block text-center bg-or hover:bg-or-fonce text-noir font-semibold rounded-lg py-3"
                     >
                       Se connecter / S&apos;inscrire

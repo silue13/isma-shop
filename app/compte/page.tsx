@@ -140,6 +140,10 @@ export default function Compte() {
     chargerCommandes(userId);
     chargerAvis(userId);
   }, [userId]);
+    function allerALaBoutique() {
+    const retour = new URLSearchParams(window.location.search).get("retour");
+    window.location.href = retour === "panier" ? "/?panier=1" : "/";
+  }
 
   async function sInscrire() {
     setErreur("");
@@ -189,13 +193,12 @@ export default function Compte() {
       lieu: lieu.trim(),
     });
 
-    if (erreurProfil) {
+       if (erreurProfil) {
       setErreur("Erreur profil : " + erreurProfil.message);
-    } else {
-      setProfil({ nom: nom.trim(), telephone: tel, lieu: lieu.trim() });
-      setProfilCharge(true);
+      setEnCours(false);
+      return;
     }
-    setEnCours(false);
+    allerALaBoutique();
   }
 
   async function seConnecter() {
@@ -209,8 +212,12 @@ export default function Compte() {
       email: emailDepuisNom(nom),
       password: motDePasse,
     });
-    if (error) setErreur("Nom ou mot de passe incorrect.");
-    setEnCours(false);
+        if (error) {
+      setErreur("Nom ou mot de passe incorrect.");
+      setEnCours(false);
+      return;
+    }
+    allerALaBoutique();
   }
 
   async function seDeconnecter() {
