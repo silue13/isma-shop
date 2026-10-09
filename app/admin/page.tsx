@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "../supabase";
+import Parametres from "./Parametres";
 
 type Produit = {
   id: number;
@@ -436,6 +437,7 @@ export default function Admin() {
       </header>
 
       <main className="max-w-3xl mx-auto p-4">
+                <Parametres />
         <div className="flex rounded-xl bg-white shadow p-1 my-5">
           <button
             onClick={() => setOnglet("commandes")}

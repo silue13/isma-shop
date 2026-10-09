@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../supabase";
 import { emailDepuisNom, nettoyerNumero, slugNom } from "../auth";
+import FormulaireProfil from "../FormulaireProfil";
 
 type Profil = { nom: string; telephone: string; lieu: string | null };
 
@@ -140,7 +141,8 @@ export default function Compte() {
     chargerCommandes(userId);
     chargerAvis(userId);
   }, [userId]);
-    function allerALaBoutique() {
+
+  function allerALaBoutique() {
     const retour = new URLSearchParams(window.location.search).get("retour");
     window.location.href = retour === "panier" ? "/?panier=1" : "/";
   }
@@ -193,7 +195,7 @@ export default function Compte() {
       lieu: lieu.trim(),
     });
 
-       if (erreurProfil) {
+    if (erreurProfil) {
       setErreur("Erreur profil : " + erreurProfil.message);
       setEnCours(false);
       return;
@@ -212,7 +214,7 @@ export default function Compte() {
       email: emailDepuisNom(nom),
       password: motDePasse,
     });
-        if (error) {
+    if (error) {
       setErreur("Nom ou mot de passe incorrect.");
       setEnCours(false);
       return;
@@ -346,6 +348,14 @@ export default function Compte() {
               Déconnexion
             </button>
           </div>
+
+          {profilCharge && profil && (
+            <FormulaireProfil
+              userId={userId}
+              profil={profil}
+              onChange={setProfil}
+            />
+          )}
 
           {/* Historique */}
           <div className="flex items-center justify-between mt-8 mb-3">
