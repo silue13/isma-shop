@@ -28,7 +28,17 @@ type Profil = { nom: string; telephone: string; lieu: string | null };
 
 type Avis = { product_id: number; etoiles: number };
 
-type Marque = { id: number; nom: string; image_url: string | null };
+const MARQUES = [
+  "Nike",
+  "Adidas",
+  "Lacoste",
+  "Reebok",
+  "Asics",
+  "New Balance",
+  "Converse",
+  "Puma",
+  "Le Coq Sportif",
+];
 
 function fcfa(n: number) {
   return `${n.toLocaleString("fr-FR")} FCFA`;
@@ -54,7 +64,6 @@ export default function Home() {
   const [chargement, setChargement] = useState(true);
   const [bandeau, setBandeau] = useState("");
   const [avis, setAvis] = useState<Avis[]>([]);
-  const [marques, setMarques] = useState<Marque[]>([]);
 
   const [panier, setPanier] = useState<LignePanier[]>([]);
   const [panierCharge, setPanierCharge] = useState(false);
@@ -91,14 +100,6 @@ export default function Home() {
       .from("reviews")
       .select("product_id, etoiles")
       .then(({ data }) => setAvis((data as Avis[]) || []));
-
-    supabase
-      .from("marques")
-      .select("id, nom, image_url")
-      .eq("actif", true)
-      .order("ordre")
-      .order("nom")
-      .then(({ data }) => setMarques((data as Marque[]) || []));
 
     supabase
       .from("reglages")
@@ -437,13 +438,11 @@ export default function Home() {
                   Nos produits
                 </a>
               </li>
-              {marques.length > 0 && (
-                <li>
-                  <a href="#marques" onClick={() => setMenuOuvert(false)}>
-                    Marques
-                  </a>
-                </li>
-              )}
+              <li>
+                <a href="#marques" onClick={() => setMenuOuvert(false)}>
+                  Marques
+                </a>
+              </li>
               <li>
                 <a href="/compte" onClick={() => setMenuOuvert(false)}>
                   {userId ? "Mon compte" : "Connexion"}
@@ -483,14 +482,12 @@ export default function Home() {
           >
             Acheter
           </a>
-          {marques.length > 0 && (
-            <a
-              href="#marques"
-              className="block mt-5 text-sm font-bold italic underline"
-            >
-              {"--->>> Voir toutes les marques ---<<<"}
-            </a>
-          )}
+          <a
+            href="#marques"
+            className="block mt-5 text-sm font-bold italic underline"
+          >
+            {"--->>> Voir toutes les marques ---<<<"}
+          </a>
           <div className="mt-4">
             <BoutonInstaller />
           </div>
@@ -589,49 +586,28 @@ export default function Home() {
           })}
         </div>
 
-        {/* Marques (gérées par l'admin) */}
-        {marques.length > 0 && (
-          <>
-            <h2 id="marques" className="text-2xl font-bold mt-12 mb-4">
-              Marques
-            </h2>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              {marques.map((m) => (
-                <button
-                  key={m.id}
-                  onClick={() => choisirMarque(m.nom)}
-                  className={`rounded-xl py-6 px-3 text-center ${
-                    m.image_url
-                      ? "bg-white border border-or/30"
-                      : "bg-noir text-white"
-                  } ${marque === m.nom ? "ring-2 ring-or" : ""}`}
-                >
-                  {m.image_url && (
-                    <img
-                      src={m.image_url}
-                      alt={m.nom}
-                      className="h-16 mx-auto object-contain mb-2"
-                    />
-                  )}
-                  <span
-                    className={`block font-bold italic tracking-wide ${
-                      m.image_url ? "text-noir" : "text-lg"
-                    }`}
-                  >
-                    {m.nom}
-                  </span>
-                  <span
-                    className={`block text-xs mt-1 ${
-                      m.image_url ? "text-brun" : "text-white/60"
-                    }`}
-                  >
-                    Voir la collection
-                  </span>
-                </button>
-              ))}
-            </div>
-          </>
-        )}
+        {/* Marques */}
+        <h2 id="marques" className="text-2xl font-bold mt-12 mb-4">
+          Marques
+        </h2>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          {MARQUES.map((m) => (
+            <button
+              key={m}
+              onClick={() => choisirMarque(m)}
+              className={`bg-noir text-white rounded-xl py-8 px-3 text-center ${
+                marque === m ? "ring-2 ring-or" : ""
+              }`}
+            >
+              <span className="block text-lg font-bold italic tracking-wide">
+                {m}
+              </span>
+              <span className="block text-xs text-white/60 mt-1">
+                Voir la collection
+              </span>
+            </button>
+          ))}
+        </div>
 
         {/* Pied de page */}
         <footer className="mt-12 mb-6 border-t border-black/10 pt-8">
@@ -647,11 +623,9 @@ export default function Home() {
                     Nos produits
                   </a>
                 </li>
-                {marques.length > 0 && (
-                  <li>
-                    <a href="#marques">Marques</a>
-                  </li>
-                )}
+                <li>
+                  <a href="#marques">Marques</a>
+                </li>
                 <li>
                   <a href="/compte">{userId ? "Mon compte" : "Connexion"}</a>
                 </li>
