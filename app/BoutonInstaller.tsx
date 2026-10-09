@@ -5,6 +5,7 @@ export default function BoutonInstaller() {
   const [evt, setEvt] = useState<any>(null);
 
   useEffect(() => {
+    navigator.serviceWorker?.register("/sw.js");
     const f = (e: any) => { e.preventDefault(); setEvt(e); };
     window.addEventListener("beforeinstallprompt", f);
     return () => window.removeEventListener("beforeinstallprompt", f);

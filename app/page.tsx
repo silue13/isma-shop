@@ -28,6 +28,8 @@ type Profil = { nom: string; telephone: string; lieu: string | null };
 
 type Avis = { product_id: number; etoiles: number };
 
+type Marque = { id: number; nom: string; image_url: string | null };
+
 function fcfa(n: number) {
   return `${n.toLocaleString("fr-FR")} FCFA`;
 }
@@ -52,6 +54,7 @@ export default function Home() {
   const [chargement, setChargement] = useState(true);
   const [bandeau, setBandeau] = useState("");
   const [avis, setAvis] = useState<Avis[]>([]);
+  const [marques, setMarques] = useState<Marque[]>([]);
 
   const [panier, setPanier] = useState<LignePanier[]>([]);
   const [panierCharge, setPanierCharge] = useState(false);
@@ -63,6 +66,15 @@ export default function Home() {
   const [lieuLivraison, setLieuLivraison] = useState("");
   const [erreurCommande, setErreurCommande] = useState("");
   const [enCours, setEnCours] = useState(false);
+
+  // Menu, recherche, filtre par marque, newsletter
+  const [menuOuvert, setMenuOuvert] = useState(false);
+  const [rechercheOuverte, setRechercheOuverte] = useState(false);
+  const [recherche, setRecherche] = useState("");
+  const [marque, setMarque] = useState("");
+  const [emailNews, setEmailNews] = useState("");
+  const [messageNews, setMessageNews] = useState("");
+  const [enCoursNews, setEnCoursNews] = useState(false);
 
   useEffect(() => {
     supabase
@@ -79,6 +91,14 @@ export default function Home() {
       .from("reviews")
       .select("product_id, etoiles")
       .then(({ data }) => setAvis((data as Avis[]) || []));
+
+    supabase
+      .from("marques")
+      .select("id, nom, image_url")
+      .eq("actif", true)
+      .order("ordre")
+      .order("nom")
+      .then(({ data }) => setMarques((data as Marque[]) || []));
 
     supabase
       .from("reglages")
@@ -154,8 +174,59 @@ export default function Home() {
     );
   }
 
+  function allerAuxProduits() {
+    setTimeout(() => {
+      document
+        .getElementById("produits")
+        ?.scrollIntoView({ behavior: "smooth" });
+    }, 50);
+  }
+
+  function choisirMarque(m: string) {
+    setMarque(m);
+    setRecherche("");
+    setRechercheOuverte(false);
+    allerAuxProduits();
+  }
+
+  async function inscrireNewsletter(e: React.FormEvent) {
+    e.preventDefault();
+    setMessageNews("");
+    const email = emailNews.trim().toLowerCase();
+    if (!email || !email.includes("@")) {
+      setMessageNews("Entre une adresse e-mail valide.");
+      return;
+    }
+    setEnCoursNews(true);
+    const { error } = await supabase.from("newsletter").insert({ email });
+    setEnCoursNews(false);
+    if (error) {
+      setMessageNews(
+        error.code === "23505"
+          ? "Tu es déjà inscrit(e). Merci !"
+          : "Inscription impossible pour le moment."
+      );
+      return;
+    }
+    setEmailNews("");
+    setMessageNews("Merci, tu es inscrit(e) ! 🎉");
+  }
+
   const total = panier.reduce((s, l) => s + l.prix * l.qte, 0);
   const nbArticles = panier.reduce((s, l) => s + l.qte, 0);
+
+  const motRecherche = recherche.trim().toLowerCase();
+  const marqueMin = marque.toLowerCase();
+  const produitsAffiches = produits.filter((p) => {
+    const nom = p.nom.toLowerCase();
+    return (
+      (!marqueMin || nom.includes(marqueMin)) &&
+      (!motRecherche || nom.includes(motRecherche))
+    );
+  });
+  const filtreActif = !!marque || !!motRecherche;
+
+  const numeroWhatsapp = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER;
 
   async function commander() {
     setErreurCommande("");
@@ -239,60 +310,233 @@ export default function Home() {
     <div className="min-h-screen bg-creme text-noir">
       {/* Bannière promo */}
       {bandeau && (
-        <div className="bg-or text-noir text-center text-sm font-semibold py-2 px-3">
+        <div className="bg-noir text-white italic text-center text-sm font-bold py-2 px-3">
           {bandeau}
         </div>
       )}
 
       {/* En-tête */}
-      <header className="sticky top-0 z-40 bg-noir text-white shadow">
-        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-2">
-          <div>
-            <p className="text-xl font-bold tracking-widest text-or">
-              ISMA&apos;STORE
-            </p>
-            <p className="text-xs text-white/60">
-              Sneakers · Tendance · Premium
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <a
-              href="/compte"
-              className="text-sm bg-white/10 hover:bg-white/20 rounded-full px-3 py-2"
+      <header className="sticky top-0 z-40 bg-white border-b border-black/10">
+        <div className="max-w-5xl mx-auto px-4 py-3 grid grid-cols-3 items-center">
+          {/* Menu hamburger */}
+          <button
+            onClick={() => setMenuOuvert(true)}
+            className="justify-self-start"
+            aria-label="Menu"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              className="w-7 h-7"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
             >
-              {userId ? "Mon compte" : "Connexion"}
-            </a>
+              <path d="M3 6h18M3 12h18M3 18h18" />
+            </svg>
+          </button>
+
+          {/* Logo dans un cercle */}
+          <a href="/" className="justify-self-center" aria-label="Accueil">
+            <img
+              src="/logo-isma.jpeg"
+              alt="Isma'Store"
+              className="w-14 h-14 rounded-full object-cover border border-black/10"
+            />
+          </a>
+
+          {/* Recherche + panier */}
+          <div className="justify-self-end flex items-center gap-4">
+            <button
+              onClick={() => setRechercheOuverte((v) => !v)}
+              aria-label="Rechercher"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                className="w-6 h-6"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              >
+                <circle cx="11" cy="11" r="7" />
+                <path d="M20 20l-4-4" />
+              </svg>
+            </button>
             <button
               onClick={() => setPanierOuvert(true)}
-              className="bg-or hover:bg-or-fonce text-noir font-semibold rounded-full px-4 py-2"
+              className="relative"
+              aria-label="Panier"
             >
-              Panier ({nbArticles})
+              <svg
+                viewBox="0 0 24 24"
+                className="w-7 h-7"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              >
+                <path d="M6 8h12l1 12H5L6 8zM9 8a3 3 0 016 0" />
+              </svg>
+              <span className="absolute -top-1 -right-2 bg-noir text-white text-xs rounded-full px-1.5">
+                {nbArticles}
+              </span>
             </button>
           </div>
         </div>
+
+        {rechercheOuverte && (
+          <div className="max-w-5xl mx-auto px-4 pb-3">
+            <input
+              autoFocus
+              value={recherche}
+              onChange={(e) => {
+                setRecherche(e.target.value);
+                allerAuxProduits();
+              }}
+              placeholder="Rechercher une paire..."
+              className="border border-black/20 bg-white rounded-full w-full px-4 py-2 focus:outline-none focus:ring-2 focus:ring-or"
+            />
+          </div>
+        )}
       </header>
 
-      <main className="max-w-5xl mx-auto p-4">
+      {/* Menu latéral */}
+      {menuOuvert && (
+        <div
+          className="fixed inset-0 bg-black/60 z-50 flex"
+          onClick={() => setMenuOuvert(false)}
+        >
+          <nav
+            className="bg-white w-72 max-w-[80%] h-full p-5 overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-6">
+              <span className="text-lg font-bold tracking-widest">
+                ISMA&apos;STORE
+              </span>
+              <button
+                onClick={() => setMenuOuvert(false)}
+                className="text-3xl leading-none"
+                aria-label="Fermer"
+              >
+                ×
+              </button>
+            </div>
+            <ul className="space-y-4 text-lg">
+              <li>
+                <a href="/" onClick={() => setMenuOuvert(false)}>
+                  Accueil
+                </a>
+              </li>
+              <li>
+                <a
+                  href="#produits"
+                  onClick={() => {
+                    setMarque("");
+                    setMenuOuvert(false);
+                  }}
+                >
+                  Nos produits
+                </a>
+              </li>
+              {marques.length > 0 && (
+                <li>
+                  <a href="#marques" onClick={() => setMenuOuvert(false)}>
+                    Marques
+                  </a>
+                </li>
+              )}
+              <li>
+                <a href="/compte" onClick={() => setMenuOuvert(false)}>
+                  {userId ? "Mon compte" : "Connexion"}
+                </a>
+              </li>
+              {numeroWhatsapp && (
+                <li>
+                  <a
+                    href={`https://wa.me/${numeroWhatsapp}`}
+                    onClick={() => setMenuOuvert(false)}
+                  >
+                    Nous contacter
+                  </a>
+                </li>
+              )}
+            </ul>
+          </nav>
+        </div>
+      )}
+
+      {/* Bannière */}
+      <section>
         <img
           src="/logo.jpeg"
           alt="Isma'Store - Sneakers tendance premium"
-          className="w-full max-w-sm mx-auto mix-blend-multiply"
+          className="w-full max-h-80 object-cover"
         />
-        <BoutonInstaller />
-
-        <div className="bg-noir text-or text-center text-sm font-semibold tracking-widest rounded-lg py-2 px-3 max-w-md mx-auto my-4">
-          À DES PRIX IMBATTABLES
+        <div className="bg-[#252a35] text-white text-center py-8 px-4">
+          <h1 className="text-2xl font-bold italic">
+            Découvre les meilleures baskets du moment
+          </h1>
+          <p className="text-white/70 mt-3 tracking-wide">ISMA&apos;STORE</p>
+          <a
+            href="#produits"
+            onClick={() => setMarque("")}
+            className="inline-block bg-white text-noir rounded-full px-8 py-3 mt-5"
+          >
+            Acheter
+          </a>
+          {marques.length > 0 && (
+            <a
+              href="#marques"
+              className="block mt-5 text-sm font-bold italic underline"
+            >
+              {"--->>> Voir toutes les marques ---<<<"}
+            </a>
+          )}
+          <div className="mt-4">
+            <BoutonInstaller />
+          </div>
         </div>
+      </section>
 
-        <h2 className="text-2xl font-bold mt-8 mb-4">Nos produits</h2>
+      <main className="max-w-5xl mx-auto p-4">
+        <h2 id="produits" className="text-2xl font-bold mt-8 mb-4">
+          Nos produits
+        </h2>
+
+        {filtreActif && (
+          <div className="flex flex-wrap items-center gap-2 mb-4 text-sm">
+            {marque && (
+              <span className="bg-noir text-white rounded-full px-3 py-1">
+                Marque : {marque}
+              </span>
+            )}
+            {motRecherche && (
+              <span className="bg-noir text-white rounded-full px-3 py-1">
+                « {recherche.trim()} »
+              </span>
+            )}
+            <button
+              onClick={() => {
+                setMarque("");
+                setRecherche("");
+              }}
+              className="underline"
+            >
+              Tout afficher
+            </button>
+          </div>
+        )}
 
         {chargement && <p className="text-brun">Chargement...</p>}
-        {!chargement && produits.length === 0 && (
-          <p className="text-brun">Aucun produit pour le moment.</p>
+        {!chargement && produitsAffiches.length === 0 && (
+          <p className="text-brun">
+            {filtreActif
+              ? "Aucun produit trouvé."
+              : "Aucun produit pour le moment."}
+          </p>
         )}
 
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {produits.map((p) => {
+          {produitsAffiches.map((p) => {
             const s = statsProduit(p.id);
             const enPromo = !!p.prix_barre && p.prix_barre > p.prix;
             const epuise = p.stock != null && p.stock <= 0;
@@ -300,20 +544,20 @@ export default function Home() {
               <a
                 key={p.id}
                 href={`/produit?id=${p.id}`}
-                className="bg-white rounded-2xl shadow border border-or/30 overflow-hidden flex flex-col"
+                className="flex flex-col bg-white rounded-2xl overflow-hidden border border-or/30 shadow-sm"
               >
-                <div className="relative">
+                <div className="relative bg-gray-100">
                   {p.photos?.[0] ? (
                     <img
                       src={p.photos[0]}
                       alt={p.nom}
-                      className="w-full h-44 md:h-56 object-cover"
+                      className="w-full aspect-square object-cover"
                     />
                   ) : (
-                    <div className="w-full h-44 md:h-56 bg-creme" />
+                    <div className="w-full aspect-square" />
                   )}
                   {enPromo && (
-                    <span className="absolute top-2 left-2 bg-noir text-or text-xs font-semibold rounded-full px-2.5 py-1">
+                    <span className="absolute bottom-2 left-2 bg-noir text-white text-sm rounded-full px-3 py-1">
                       Promotion
                     </span>
                   )}
@@ -323,25 +567,19 @@ export default function Home() {
                     </span>
                   )}
                 </div>
-
-                <div className="p-3">
-                  <h3 className="font-semibold">{p.nom}</h3>
-                  <p>
-                    {enPromo && (
-                      <span className="text-brun line-through text-sm mr-2">
-                        {fcfa(p.prix_barre as number)}
-                      </span>
-                    )}
-                    <span className="font-bold text-or-fonce text-lg">
-                      {fcfa(p.prix)}
-                    </span>
+                <div className="p-4">
+                  <h3 className="font-bold text-lg">{p.nom}</h3>
+                  {enPromo && (
+                    <p className="text-gray-400 line-through text-sm mt-1">
+                      {fcfa(p.prix_barre as number)}
+                    </p>
+                  )}
+                  <p className="text-xl font-bold text-or-fonce mt-1">
+                    {fcfa(p.prix)}
                   </p>
                   {s.nb > 0 && (
                     <p className="text-sm mt-1">
                       <Etoiles note={s.moyenne} />{" "}
-                      <span className="font-semibold">
-                        {s.moyenne.toFixed(1).replace(".", ",")}
-                      </span>{" "}
                       <span className="text-brun">({s.nb})</span>
                     </p>
                   )}
@@ -351,11 +589,124 @@ export default function Home() {
           })}
         </div>
 
-        <footer className="mt-12 mb-6 text-center text-sm text-brun">
-          <p className="font-semibold tracking-wide">
-            Qualité · Style · Confiance · Exclusivité
-          </p>
-          <p className="mt-1">Livraison rapide · Authenticité garantie</p>
+        {/* Marques (gérées par l'admin) */}
+        {marques.length > 0 && (
+          <>
+            <h2 id="marques" className="text-2xl font-bold mt-12 mb-4">
+              Marques
+            </h2>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              {marques.map((m) => (
+                <button
+                  key={m.id}
+                  onClick={() => choisirMarque(m.nom)}
+                  className={`rounded-xl py-6 px-3 text-center ${
+                    m.image_url
+                      ? "bg-white border border-or/30"
+                      : "bg-noir text-white"
+                  } ${marque === m.nom ? "ring-2 ring-or" : ""}`}
+                >
+                  {m.image_url && (
+                    <img
+                      src={m.image_url}
+                      alt={m.nom}
+                      className="h-16 mx-auto object-contain mb-2"
+                    />
+                  )}
+                  <span
+                    className={`block font-bold italic tracking-wide ${
+                      m.image_url ? "text-noir" : "text-lg"
+                    }`}
+                  >
+                    {m.nom}
+                  </span>
+                  <span
+                    className={`block text-xs mt-1 ${
+                      m.image_url ? "text-brun" : "text-white/60"
+                    }`}
+                  >
+                    Voir la collection
+                  </span>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* Pied de page */}
+        <footer className="mt-12 mb-6 border-t border-black/10 pt-8">
+          <div className="grid md:grid-cols-3 gap-8 text-sm">
+            <div>
+              <h3 className="font-bold mb-3">Liens rapides</h3>
+              <ul className="space-y-2">
+                <li>
+                  <a href="/">Accueil</a>
+                </li>
+                <li>
+                  <a href="#produits" onClick={() => setMarque("")}>
+                    Nos produits
+                  </a>
+                </li>
+                {marques.length > 0 && (
+                  <li>
+                    <a href="#marques">Marques</a>
+                  </li>
+                )}
+                <li>
+                  <a href="/compte">{userId ? "Mon compte" : "Connexion"}</a>
+                </li>
+              </ul>
+            </div>
+
+            <div>
+              <h3 className="font-bold mb-3">Contactez-nous</h3>
+              {numeroWhatsapp ? (
+                <a
+                  href={`https://wa.me/${numeroWhatsapp}`}
+                  className="inline-block bg-green-600 text-white rounded-full px-5 py-2 font-semibold"
+                >
+                  Écrire sur WhatsApp
+                </a>
+              ) : (
+                <p className="text-brun">Contact bientôt disponible.</p>
+              )}
+            </div>
+
+            <div>
+              <h3 className="font-bold mb-3">
+                Abonne-toi pour recevoir nos nouveautés
+              </h3>
+              <form onSubmit={inscrireNewsletter} className="flex gap-2">
+                <input
+                  type="email"
+                  value={emailNews}
+                  onChange={(e) => setEmailNews(e.target.value)}
+                  placeholder="E-mail"
+                  className="border border-black/20 bg-white rounded-full flex-1 min-w-0 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-or"
+                />
+                <button
+                  type="submit"
+                  disabled={enCoursNews}
+                  className="bg-noir text-white rounded-full px-4 py-2 disabled:opacity-50"
+                >
+                  {enCoursNews ? "..." : "OK"}
+                </button>
+              </form>
+              {messageNews && (
+                <p className="text-brun mt-2">{messageNews}</p>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-10 text-center text-sm text-brun">
+            <p className="font-semibold tracking-wide">
+              Qualité · Style · Confiance · Exclusivité
+            </p>
+            <p className="mt-1">Livraison rapide · Authenticité garantie</p>
+            <p className="mt-3 text-xs">
+              © {new Date().getFullYear()} Isma&apos;Store
+            </p>
+          </div>
         </footer>
       </main>
 
