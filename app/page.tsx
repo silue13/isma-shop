@@ -8,6 +8,8 @@ type Produit = {
   nom: string;
   description: string | null;
   prix: number;
+  prix_barre: number | null;
+  stock: number | null;
   photos: string[];
   pointures: string[];
   couleurs: string[];
@@ -24,12 +26,33 @@ type LignePanier = {
 
 type Profil = { nom: string; telephone: string; lieu: string | null };
 
+type Avis = { product_id: number; etoiles: number };
+
+function fcfa(n: number) {
+  return `${n.toLocaleString("fr-FR")} FCFA`;
+}
+
+function Etoiles({ note }: { note: number }) {
+  return (
+    <span aria-label={`${note} sur 5`}>
+      {[1, 2, 3, 4, 5].map((n) => (
+        <span
+          key={n}
+          className={n <= Math.round(note) ? "text-or" : "text-gray-300"}
+        >
+          ★
+        </span>
+      ))}
+    </span>
+  );
+}
+
 export default function Home() {
   const [produits, setProduits] = useState<Produit[]>([]);
   const [chargement, setChargement] = useState(true);
-  const [choix, setChoix] = useState<
-    Record<number, { pointure?: string; couleur?: string }>
-  >({});
+  const [bandeau, setBandeau] = useState("");
+  const [avis, setAvis] = useState<Avis[]>([]);
+
   const [panier, setPanier] = useState<LignePanier[]>([]);
   const [panierCharge, setPanierCharge] = useState(false);
   const [panierOuvert, setPanierOuvert] = useState(false);
@@ -51,6 +74,23 @@ export default function Home() {
         setProduits((data as Produit[]) || []);
         setChargement(false);
       });
+
+    supabase
+      .from("reviews")
+      .select("product_id, etoiles")
+      .then(({ data }) => setAvis((data as Avis[]) || []));
+
+    supabase
+      .from("reglages")
+      .select("valeur")
+      .eq("cle", "bandeau")
+      .maybeSingle()
+      .then(({ data }) => setBandeau(data?.valeur || ""));
+
+    // Ouvrir le panier si on arrive depuis la page produit
+    if (new URLSearchParams(window.location.search).get("panier") === "1") {
+      setPanierOuvert(true);
+    }
   }, []);
 
   useEffect(() => {
@@ -67,7 +107,6 @@ export default function Home() {
     }
   }, [panier, panierCharge]);
 
-  // Savoir si le client est connecté
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       setUserId(data.session?.user.id ?? null);
@@ -80,7 +119,6 @@ export default function Home() {
     return () => abonnement.subscription.unsubscribe();
   }, []);
 
-  // Récupérer son profil (nom, téléphone, lieu)
   useEffect(() => {
     if (!userId) {
       setProfil(null);
@@ -101,35 +139,11 @@ export default function Home() {
       });
   }, [userId]);
 
-  function choisir(id: number, champ: "pointure" | "couleur", valeur: string) {
-    setChoix((prev) => ({ ...prev, [id]: { ...prev[id], [champ]: valeur } }));
-  }
-
-  function ajouter(p: Produit) {
-    const c = choix[p.id] || {};
-    if (p.pointures?.length && !c.pointure) {
-      alert("Choisis une pointure");
-      return;
-    }
-    if (p.couleurs?.length && !c.couleur) {
-      alert("Choisis une couleur");
-      return;
-    }
-    const pointure = c.pointure || "";
-    const couleur = c.couleur || "";
-    const cle = `${p.id}-${pointure}-${couleur}`;
-
-    setPanier((prev) => {
-      const existe = prev.find((l) => l.cle === cle);
-      if (existe) {
-        return prev.map((l) => (l.cle === cle ? { ...l, qte: l.qte + 1 } : l));
-      }
-      return [
-        ...prev,
-        { cle, nom: p.nom, prix: p.prix, pointure, couleur, qte: 1 },
-      ];
-    });
-    setPanierOuvert(true);
+  function statsProduit(id: number) {
+    const liste = avis.filter((a) => a.product_id === id);
+    const nb = liste.length;
+    const moyenne = nb ? liste.reduce((s, a) => s + a.etoiles, 0) / nb : 0;
+    return { nb, moyenne };
   }
 
   function changerQte(cle: string, delta: number) {
@@ -159,7 +173,6 @@ export default function Home() {
 
     setEnCours(true);
 
-    // 1. Enregistrer la commande
     const articles = panier.map((l) => ({
       produit_id: Number(l.cle.split("-")[0]),
       nom: l.nom,
@@ -190,7 +203,6 @@ export default function Home() {
       return;
     }
 
-    // 2. Préparer le message WhatsApp
     const lignes = panier.map((l, i) => {
       const details = [
         `*${i + 1}. ${l.nom}*`,
@@ -212,7 +224,6 @@ export default function Home() {
       `━━━━━━━━━━━━\n\n` +
       `Merci de me confirmer la disponibilité, le prix de la livraison et le mode de paiement. 🙏`;
 
-    // 3. Vider le panier et ouvrir WhatsApp
     localStorage.removeItem("panier");
     setPanier([]);
     setEnCours(false);
@@ -221,13 +232,18 @@ export default function Home() {
     )}`;
   }
 
-  const selecteur =
-    "border border-or/40 rounded-lg w-full mt-2 p-2 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-or";
   const champLivraison =
     "border border-or/40 rounded-lg w-full p-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-or";
 
   return (
     <div className="min-h-screen bg-creme text-noir">
+      {/* Bannière promo */}
+      {bandeau && (
+        <div className="bg-or text-noir text-center text-sm font-semibold py-2 px-3">
+          {bandeau}
+        </div>
+      )}
+
       {/* En-tête */}
       <header className="sticky top-0 z-40 bg-noir text-white shadow">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-2">
@@ -275,70 +291,63 @@ export default function Home() {
         )}
 
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {produits.map((p) => (
-            <div
-              key={p.id}
-              className="bg-white rounded-2xl shadow border border-or/30 overflow-hidden flex flex-col"
-            >
-              {p.photos?.[0] ? (
-                <img
-                  src={p.photos[0]}
-                  alt={p.nom}
-                  className="w-full h-44 md:h-56 object-cover"
-                />
-              ) : (
-                <div className="w-full h-44 md:h-56 bg-creme" />
-              )}
+          {produits.map((p) => {
+            const s = statsProduit(p.id);
+            const enPromo = !!p.prix_barre && p.prix_barre > p.prix;
+            const epuise = p.stock != null && p.stock <= 0;
+            return (
+              <a
+                key={p.id}
+                href={`/produit?id=${p.id}`}
+                className="bg-white rounded-2xl shadow border border-or/30 overflow-hidden flex flex-col"
+              >
+                <div className="relative">
+                  {p.photos?.[0] ? (
+                    <img
+                      src={p.photos[0]}
+                      alt={p.nom}
+                      className="w-full h-44 md:h-56 object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-44 md:h-56 bg-creme" />
+                  )}
+                  {enPromo && (
+                    <span className="absolute top-2 left-2 bg-noir text-or text-xs font-semibold rounded-full px-2.5 py-1">
+                      Promotion
+                    </span>
+                  )}
+                  {epuise && (
+                    <span className="absolute top-2 right-2 bg-red-600 text-white text-xs font-semibold rounded-full px-2.5 py-1">
+                      Épuisé
+                    </span>
+                  )}
+                </div>
 
-              <div className="p-3 flex flex-col flex-1">
-                <h3 className="font-semibold">{p.nom}</h3>
-                <p className="font-bold text-or-fonce text-lg">
-                  {p.prix} FCFA
-                </p>
-
-                {p.pointures?.length > 0 && (
-                  <select
-                    className={selecteur}
-                    defaultValue=""
-                    onChange={(e) => choisir(p.id, "pointure", e.target.value)}
-                  >
-                    <option value="" disabled>
-                      Pointure
-                    </option>
-                    {p.pointures.map((x) => (
-                      <option key={x} value={x}>
-                        {x}
-                      </option>
-                    ))}
-                  </select>
-                )}
-
-                {p.couleurs?.length > 0 && (
-                  <select
-                    className={selecteur}
-                    defaultValue=""
-                    onChange={(e) => choisir(p.id, "couleur", e.target.value)}
-                  >
-                    <option value="" disabled>
-                      Couleur
-                    </option>
-                    {p.couleurs.map((x) => (
-                      <option key={x} value={x}>
-                        {x}
-                      </option>
-                    ))}
-                  </select>
-                )}
-
-                <button
-                  onClick={() => ajouter(p)}
-                  className="bg-noir hover:bg-black/80 text-or font-semibold rounded-lg w-full mt-3 py-2"
-                >
-                  Ajouter au panier
-                </button>
-              </div>
-            </div>
-          ))}
+                <div className="p-3">
+                  <h3 className="font-semibold">{p.nom}</h3>
+                  <p>
+                    {enPromo && (
+                      <span className="text-brun line-through text-sm mr-2">
+                        {fcfa(p.prix_barre as number)}
+                      </span>
+                    )}
+                    <span className="font-bold text-or-fonce text-lg">
+                      {fcfa(p.prix)}
+                    </span>
+                  </p>
+                  {s.nb > 0 && (
+                    <p className="text-sm mt-1">
+                      <Etoiles note={s.moyenne} />{" "}
+                      <span className="font-semibold">
+                        {s.moyenne.toFixed(1).replace(".", ",")}
+                      </span>{" "}
+                      <span className="text-brun">({s.nb})</span>
+                    </p>
+                  )}
+                </div>
+              </a>
+            );
+          })}
         </div>
 
         <footer className="mt-12 mb-6 text-center text-sm text-brun">
@@ -395,7 +404,7 @@ export default function Home() {
                     </button>
                   </div>
                   <p className="font-bold text-or-fonce">
-                    {l.prix * l.qte} FCFA
+                    {fcfa(l.prix * l.qte)}
                   </p>
                 </div>
               </div>
@@ -403,7 +412,9 @@ export default function Home() {
 
             {panier.length > 0 && (
               <>
-                <p className="text-xl font-bold mt-4">Total : {total} FCFA</p>
+                <p className="text-xl font-bold mt-4">
+                  Total : {fcfa(total)}
+                </p>
 
                 {!userId && (
                   <div className="bg-white rounded-xl border border-or/30 p-4 mt-4">

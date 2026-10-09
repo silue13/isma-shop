@@ -1,5 +1,5 @@
-// Le client se connecte avec son numéro : on en fait un e-mail interne.
-export const DOMAINE = "gmail.com";
+// Le client se connecte avec son nom ou surnom : on en fait un e-mail interne.
+export const DOMAINE = "isma-store.com";
 
 export function nettoyerNumero(saisie: string): string {
   let n = saisie.replace(/\D/g, "");
@@ -7,6 +7,17 @@ export function nettoyerNumero(saisie: string): string {
   return n;
 }
 
-export function emailDepuisNumero(saisie: string): string {
-  return `${nettoyerNumero(saisie)}@${DOMAINE}`;
+// Transforme le nom en identifiant simple : sans accents, sans majuscules.
+export function slugNom(nom: string): string {
+  return nom
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ".")
+    .replace(/^\.+|\.+$/g, "")
+    .slice(0, 50);
+}
+
+export function emailDepuisNom(nom: string): string {
+  return `${slugNom(nom)}@${DOMAINE}`;
 }

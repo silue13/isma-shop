@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "../supabase";
-import { emailDepuisNumero, nettoyerNumero } from "../auth";
+import { emailDepuisNom, nettoyerNumero, slugNom } from "../auth";
 
 type Profil = { nom: string; telephone: string; lieu: string | null };
 
@@ -144,22 +144,30 @@ export default function Compte() {
   async function sInscrire() {
     setErreur("");
     const tel = nettoyerNumero(telephone);
-    if (!nom.trim()) return setErreur("Écris ton nom.");
-    if (tel.length < 8 || tel.length > 15)
-      return setErreur("Numéro de téléphone invalide.");
+
+    if (!nom.trim()) return setErreur("Écris ton nom ou surnom.");
+    if (!slugNom(nom))
+      return setErreur(
+        "Ton nom ou surnom doit contenir des lettres ou des chiffres."
+      );
+    if (tel.length !== 10)
+      return setErreur("Le numéro doit avoir 10 chiffres après +225.");
     if (motDePasse.length < 6)
       return setErreur("Le mot de passe doit avoir au moins 6 caractères.");
 
     setEnCours(true);
     const { data, error } = await supabase.auth.signUp({
-      email: emailDepuisNumero(tel),
+      email: emailDepuisNom(nom),
       password: motDePasse,
     });
 
     if (error) {
+      const m = error.message.toLowerCase();
       setErreur(
-        error.message.toLowerCase().includes("already")
-          ? "Ce numéro a déjà un compte. Va dans l'onglet Connexion."
+        m.includes("already")
+          ? "Ce nom ou surnom est déjà pris. Choisis-en un autre (ajoute un chiffre par exemple) ou va dans Connexion."
+          : m.includes("signups not allowed")
+          ? "Les inscriptions sont fermées dans Supabase (Allow new users to sign up)."
           : "Erreur : " + error.message
       );
       setEnCours(false);
@@ -192,12 +200,16 @@ export default function Compte() {
 
   async function seConnecter() {
     setErreur("");
+    if (!slugNom(nom)) {
+      setErreur("Écris ton nom ou surnom.");
+      return;
+    }
     setEnCours(true);
     const { error } = await supabase.auth.signInWithPassword({
-      email: emailDepuisNumero(telephone),
+      email: emailDepuisNom(nom),
       password: motDePasse,
     });
-    if (error) setErreur("Numéro ou mot de passe incorrect.");
+    if (error) setErreur("Nom ou mot de passe incorrect.");
     setEnCours(false);
   }
 
@@ -302,7 +314,7 @@ export default function Compte() {
                 <h1 className="text-2xl font-bold mb-1">
                   Bonjour {profil.nom} 👋
                 </h1>
-                <p className="text-brun">Téléphone : {profil.telephone}</p>
+                <p className="text-brun">Téléphone : +225 {profil.telephone}</p>
                 {profil.lieu && (
                   <p className="text-brun">Lieu : {profil.lieu}</p>
                 )}
@@ -494,34 +506,43 @@ export default function Compte() {
             </button>
           </div>
 
+          <label className={etiquette}>Nom ou surnom</label>
+          <input
+            value={nom}
+            onChange={(e) => setNom(e.target.value)}
+            placeholder="Ex : Aboubakar"
+            className={champ + (mode === "inscription" ? " mb-1" : " mb-4")}
+          />
           {mode === "inscription" && (
-            <>
-              <label className={etiquette}>Nom et prénom</label>
-              <input
-                value={nom}
-                onChange={(e) => setNom(e.target.value)}
-                className={champ + " mb-4"}
-              />
-            </>
+            <p className="text-xs text-brun mb-4">
+              C&apos;est avec lui que tu te connecteras. Il doit être unique.
+            </p>
           )}
 
-          <label className={etiquette}>Numéro de téléphone</label>
-          <input
-            type="tel"
-            placeholder="0574963117"
-            value={telephone}
-            onChange={(e) => setTelephone(e.target.value)}
-            className={champ + " mb-4"}
-          />
-
           {mode === "inscription" && (
             <>
+              <label className={etiquette}>Numéro de téléphone</label>
+              <div className="flex mb-4">
+                <span className="bg-noir text-or font-semibold rounded-l-lg px-3 flex items-center">
+                  +225
+                </span>
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  placeholder="0574963117"
+                  value={telephone}
+                  onChange={(e) => setTelephone(e.target.value)}
+                  className={champ + " rounded-l-none"}
+                />
+              </div>
+
               <label className={etiquette}>
-                Lieu de livraison habituel (quartier, ville)
+                Lieu de livraison habituel (facultatif)
               </label>
               <input
                 value={lieu}
                 onChange={(e) => setLieu(e.target.value)}
+                placeholder="Quartier, ville"
                 className={champ + " mb-4"}
               />
             </>
