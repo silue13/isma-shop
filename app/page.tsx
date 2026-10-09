@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "./supabase";
-
+import BoutonInstaller from "./BoutonInstaller";
 type Produit = {
   id: number;
   nom: string;
@@ -278,6 +278,7 @@ export default function Home() {
           alt="Isma'Store - Sneakers tendance premium"
           className="w-full max-w-sm mx-auto mix-blend-multiply"
         />
+        <BoutonInstaller />
 
         <div className="bg-noir text-or text-center text-sm font-semibold tracking-widest rounded-lg py-2 px-3 max-w-md mx-auto my-4">
           À DES PRIX IMBATTABLES
