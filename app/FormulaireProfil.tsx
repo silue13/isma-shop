@@ -67,7 +67,6 @@ export default function FormulaireProfil({
     setEnCours(true);
 
     if (nomChange || mdpChange) {
-      // 1. Vérifier le mot de passe actuel
       const { error: erreurAuth } = await supabase.auth.signInWithPassword({
         email: emailDepuisNom(profil.nom),
         password: mdpActuel,
@@ -78,7 +77,6 @@ export default function FormulaireProfil({
         return;
       }
 
-      // 2. Changer l'identifiant (nom)
       if (nomChange) {
         const { data, error } = await supabase.auth.updateUser({
           email: emailDepuisNom(nouveauNom),
@@ -102,7 +100,6 @@ export default function FormulaireProfil({
         }
       }
 
-      // 3. Changer le mot de passe
       if (mdpChange) {
         const { error } = await supabase.auth.updateUser({
           password: nouveauMdp,
@@ -115,7 +112,6 @@ export default function FormulaireProfil({
       }
     }
 
-    // 4. Enregistrer le profil
     const { error: erreurProfil } = await supabase
       .from("clients")
       .update({ nom: nouveauNom, telephone: tel, lieu: lieu.trim() })

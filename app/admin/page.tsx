@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../supabase";
 import Parametres from "./Parametres";
+import GestionMarques from "./GestionMarques";
 
 type Produit = {
   id: number;
@@ -49,6 +50,42 @@ function versListe(texte: string): string[] {
     .split(",")
     .map((x) => x.trim())
     .filter((x) => x.length > 0);
+}
+
+// Réduit la photo (1200 px max, JPEG 80 %) avant l'envoi pour que la boutique reste rapide
+async function compresserImage(
+  f: File,
+  maxCote = 1200,
+  qualite = 0.8
+): Promise<File> {
+  try {
+    if (!f.type.startsWith("image/") || f.type === "image/gif") return f;
+    const bitmap = await createImageBitmap(f);
+    const echelle = Math.min(
+      1,
+      maxCote / Math.max(bitmap.width, bitmap.height)
+    );
+    const w = Math.round(bitmap.width * echelle);
+    const h = Math.round(bitmap.height * echelle);
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return f;
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    bitmap.close();
+    const blob = await new Promise<Blob | null>((resoudre) =>
+      canvas.toBlob(resoudre, "image/jpeg", qualite)
+    );
+    if (!blob || blob.size >= f.size) return f;
+    return new File([blob], f.name.replace(/\.[^.]+$/, "") + ".jpg", {
+      type: "image/jpeg",
+    });
+  } catch {
+    return f;
+  }
 }
 
 const champ =
@@ -237,15 +274,15 @@ export default function Admin() {
 
     setEnCours(true);
 
-    // 1. Envoyer les nouvelles photos
+    // 1. Compresser puis envoyer les nouvelles photos
     const urls: string[] = [];
     for (let i = 0; i < fichiers.length; i++) {
-      const f = fichiers[i];
+      const f = await compresserImage(fichiers[i]);
       const ext = f.name.split(".").pop();
       const chemin = `${Date.now()}-${i}.${ext}`;
       const { error } = await supabase.storage
         .from("produits")
-        .upload(chemin, f);
+        .upload(chemin, f, { cacheControl: "31536000" });
       if (error) {
         setMessage("Erreur photo : " + error.message);
         setEnCours(false);
@@ -614,6 +651,9 @@ export default function Admin() {
               </button>
             </section>
 
+            {/* Marques affichées sur l'accueil */}
+            <GestionMarques />
+
             {/* Formulaire produit */}
             <section className="bg-white shadow rounded-2xl p-5 mb-6 border border-or/20">
               <div className="flex items-center justify-between mb-4">
@@ -810,6 +850,7 @@ export default function Admin() {
                     <img
                       src={p.photos[0]}
                       alt={p.nom}
+                      loading="lazy"
                       className="w-20 h-20 object-cover rounded-xl"
                     />
                   ) : (

@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { supabase } from "../supabase";
 
 type Produit = {
@@ -13,6 +15,14 @@ type Produit = {
   photos: string[];
   pointures: string[];
   couleurs: string[];
+};
+
+type Suggestion = {
+  id: number;
+  nom: string;
+  prix: number;
+  prix_barre: number | null;
+  photos: string[];
 };
 
 type Avis = {
@@ -57,10 +67,13 @@ function Etoiles({
   );
 }
 
-export default function PageProduit() {
+function PageProduitContenu() {
+  const params = useSearchParams();
+  const id = Number(params.get("id"));
+
   const [chargement, setChargement] = useState(true);
   const [produit, setProduit] = useState<Produit | null>(null);
-  const [autres, setAutres] = useState<Produit[]>([]);
+  const [autres, setAutres] = useState<Suggestion[]>([]);
   const [avis, setAvis] = useState<Avis[]>([]);
 
   const [photoIndex, setPhotoIndex] = useState(0);
@@ -84,41 +97,65 @@ export default function PageProduit() {
 
   useEffect(() => {
     compterPanier();
-    const id = Number(new URLSearchParams(window.location.search).get("id"));
+
+    // Remise à zéro quand on change de produit
+    setProduit(null);
+    setAutres([]);
+    setAvis([]);
+    setPhotoIndex(0);
+    setPointure("");
+    setCouleur("");
+    setQte(1);
+    setMessage("");
+    setAjoute(false);
+    window.scrollTo({ top: 0 });
+
     if (!id) {
       setChargement(false);
       return;
     }
+    setChargement(true);
+    let annule = false;
 
-    async function charger() {
-      const { data } = await supabase
-        .from("products")
-        .select("*")
-        .eq("id", id)
-        .eq("actif", true)
-        .maybeSingle();
-      setProduit((data as Produit) || null);
-      setChargement(false);
-      if (!data) return;
+    // Les trois requêtes partent en même temps
+    supabase
+      .from("products")
+      .select(
+        "id, nom, description, prix, prix_barre, stock, photos, pointures, couleurs"
+      )
+      .eq("id", id)
+      .eq("actif", true)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (annule) return;
+        setProduit((data as Produit) || null);
+        setChargement(false);
+      });
 
-      const { data: av } = await supabase
-        .from("reviews")
-        .select("id, etoiles, commentaire, auteur, created_at")
-        .eq("product_id", id)
-        .order("created_at", { ascending: false });
-      setAvis((av as Avis[]) || []);
+    supabase
+      .from("reviews")
+      .select("id, etoiles, commentaire, auteur, created_at")
+      .eq("product_id", id)
+      .order("created_at", { ascending: false })
+      .then(({ data }) => {
+        if (!annule) setAvis((data as Avis[]) || []);
+      });
 
-      const { data: autresData } = await supabase
-        .from("products")
-        .select("*")
-        .eq("actif", true)
-        .neq("id", id)
-        .order("created_at", { ascending: false })
-        .limit(4);
-      setAutres((autresData as Produit[]) || []);
-    }
-    charger();
-  }, []);
+    supabase
+      .from("products")
+      .select("id, nom, prix, prix_barre, photos")
+      .eq("actif", true)
+      .neq("id", id)
+      .order("created_at", { ascending: false })
+      .limit(4)
+      .then(({ data }) => {
+        if (!annule) setAutres((data as Suggestion[]) || []);
+      });
+
+    return () => {
+      annule = true;
+    };
+  }, [id]);
 
   const epuise = !!produit && produit.stock != null && produit.stock <= 0;
   const stockBas =
@@ -206,21 +243,21 @@ export default function PageProduit() {
   const entete = (
     <header className="sticky top-0 z-40 bg-noir text-white shadow">
       <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between gap-2">
-        <a
+        <Link
           href="/"
           className="text-sm bg-white/10 hover:bg-white/20 rounded-full px-3 py-2"
         >
           ← Boutique
-        </a>
+        </Link>
         <p className="text-lg font-bold tracking-widest text-or">
           ISMA&apos;STORE
         </p>
-        <a
+        <Link
           href="/?panier=1"
           className="bg-or hover:bg-or-fonce text-noir font-semibold rounded-full px-4 py-2 text-sm"
         >
           Panier ({nbPanier})
-        </a>
+        </Link>
       </div>
     </header>
   );
@@ -229,7 +266,12 @@ export default function PageProduit() {
     return (
       <div className="min-h-screen bg-creme text-noir">
         {entete}
-        <p className="p-6 text-brun">Chargement...</p>
+        <div className="max-w-3xl mx-auto p-4 animate-pulse">
+          <div className="w-full aspect-square rounded-2xl bg-white/70" />
+          <div className="h-7 w-2/3 bg-white/70 rounded mt-5" />
+          <div className="h-7 w-1/3 bg-white/70 rounded mt-3" />
+          <div className="h-12 w-full bg-white/70 rounded-lg mt-6" />
+        </div>
       </div>
     );
   }
@@ -239,13 +281,15 @@ export default function PageProduit() {
       <div className="min-h-screen bg-creme text-noir">
         {entete}
         <div className="max-w-3xl mx-auto p-6 text-center">
-          <p className="text-brun mb-4">Ce produit n&apos;existe pas ou n&apos;est plus disponible.</p>
-          <a
+          <p className="text-brun mb-4">
+            Ce produit n&apos;existe pas ou n&apos;est plus disponible.
+          </p>
+          <Link
             href="/"
             className="inline-block bg-noir text-or font-semibold rounded-lg px-5 py-3"
           >
             Retour à la boutique
-          </a>
+          </Link>
         </div>
       </div>
     );
@@ -264,6 +308,8 @@ export default function PageProduit() {
             <img
               src={photos[photoIndex] || photos[0]}
               alt={produit.nom}
+              fetchPriority="high"
+              decoding="async"
               className="w-full aspect-square object-cover rounded-2xl bg-white shadow"
             />
             {photos.length > 1 && (
@@ -277,7 +323,13 @@ export default function PageProduit() {
                       (i === photoIndex ? "border-noir" : "border-transparent")
                     }
                   >
-                    <img src={u} alt="" className="w-16 h-16 object-cover" />
+                    <img
+                      src={u}
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                      className="w-16 h-16 object-cover"
+                    />
                   </button>
                 ))}
               </div>
@@ -409,18 +461,18 @@ export default function PageProduit() {
               ✓ Ajouté au panier
             </p>
             <div className="flex gap-2">
-              <a
+              <Link
                 href="/?panier=1"
                 className="flex-1 text-center bg-or hover:bg-or-fonce text-noir font-semibold rounded-lg py-2.5"
               >
                 Voir mon panier
-              </a>
-              <a
+              </Link>
+              <Link
                 href="/"
                 className="flex-1 text-center bg-white border border-or/50 rounded-lg py-2.5"
               >
                 Continuer mes achats
-              </a>
+              </Link>
             </div>
           </div>
         )}
@@ -472,7 +524,7 @@ export default function PageProduit() {
               {autres.map((p) => {
                 const promo = !!p.prix_barre && p.prix_barre > p.prix;
                 return (
-                  <a
+                  <Link
                     key={p.id}
                     href={`/produit?id=${p.id}`}
                     className="bg-white rounded-2xl shadow border border-or/30 overflow-hidden"
@@ -482,6 +534,8 @@ export default function PageProduit() {
                         <img
                           src={p.photos[0]}
                           alt={p.nom}
+                          loading="lazy"
+                          decoding="async"
                           className="w-full h-36 object-cover"
                         />
                       ) : (
@@ -506,7 +560,7 @@ export default function PageProduit() {
                         </span>
                       </p>
                     </div>
-                  </a>
+                  </Link>
                 );
               })}
             </div>
@@ -514,5 +568,13 @@ export default function PageProduit() {
         )}
       </main>
     </div>
+  );
+}
+
+export default function PageProduit() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-creme" />}>
+      <PageProduitContenu />
+    </Suspense>
   );
 }
