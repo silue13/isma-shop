@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "./supabase";
-import InstallerApp from "./InstallerApp";
 import BoutonInstaller from "./BoutonInstaller";
 type Produit = {
   id: number;
@@ -68,6 +67,14 @@ export default function Home() {
   const [lieuLivraison, setLieuLivraison] = useState("");
   const [erreurCommande, setErreurCommande] = useState("");
   const [enCours, setEnCours] = useState(false);
+
+  // Carte cadeau
+  const [codeCarte, setCodeCarte] = useState("");
+  const [carte, setCarte] = useState<{ code: string; solde: number } | null>(
+    null
+  );
+  const [erreurCarte, setErreurCarte] = useState("");
+  const [verifCarte, setVerifCarte] = useState(false);
 
   // Menu, recherche, filtre par marque, newsletter
   const [menuOuvert, setMenuOuvert] = useState(false);
@@ -214,8 +221,41 @@ export default function Home() {
     setMessageNews("Merci, tu es inscrit(e) ! 🎉");
   }
 
+  async function appliquerCarte() {
+    setErreurCarte("");
+    const code = codeCarte.trim().toUpperCase();
+    if (!code) {
+      setErreurCarte("Entre ton code.");
+      return;
+    }
+    setVerifCarte(true);
+    const { data, error } = await supabase.rpc("verifier_carte", {
+      p_code: code,
+    });
+    setVerifCarte(false);
+    if (error) {
+      setErreurCarte("Vérification impossible pour le moment.");
+      return;
+    }
+    const solde = Number(data) || 0;
+    if (solde <= 0) {
+      setCarte(null);
+      setErreurCarte("Code invalide ou carte déjà utilisée.");
+      return;
+    }
+    setCarte({ code, solde });
+    setCodeCarte("");
+  }
+
+  function retirerCarte() {
+    setCarte(null);
+    setErreurCarte("");
+  }
+
   const total = panier.reduce((s, l) => s + l.prix * l.qte, 0);
   const nbArticles = panier.reduce((s, l) => s + l.qte, 0);
+  const reduction = carte ? Math.min(carte.solde, total) : 0;
+  const totalAPayer = total - reduction;
 
   const motRecherche = recherche.trim().toLowerCase();
   const marqueMin = marque.toLowerCase();
@@ -263,14 +303,20 @@ export default function Home() {
         telephone: profil.telephone,
         lieu: lieuLivraison.trim(),
         articles,
-        total,
+        total: totalAPayer,
+        carte_code: carte && reduction > 0 ? carte.code : null,
+        reduction,
       })
       .select("id")
       .single();
 
     if (error || !data) {
+      const carteRefusee = !!error?.message?.includes("Carte cadeau");
+      if (carteRefusee) setCarte(null);
       setErreurCommande(
-        "Impossible d'enregistrer la commande : " + (error?.message || "")
+        carteRefusee
+          ? "Cette carte cadeau n'est plus valable ou son solde est insuffisant. Elle a été retirée, vérifie le total."
+          : "Impossible d'enregistrer la commande : " + (error?.message || "")
       );
       setEnCours(false);
       return;
@@ -293,12 +339,16 @@ export default function Home() {
       `📍 *Livraison* : ${lieuLivraison.trim()}\n\n` +
       `${lignes.join("\n\n")}\n\n` +
       `━━━━━━━━━━━━\n` +
-      `💰 *TOTAL : ${total} FCFA*\n` +
+      (reduction > 0 && carte
+        ? `Sous-total : ${total} FCFA\n🎁 *Carte cadeau* (${carte.code}) : -${reduction} FCFA\n`
+        : "") +
+      `💰 *TOTAL À PAYER : ${totalAPayer} FCFA*\n` +
       `━━━━━━━━━━━━\n\n` +
       `Merci de me confirmer la disponibilité, le prix de la livraison et le mode de paiement. 🙏`;
 
     localStorage.removeItem("panier");
     setPanier([]);
+    setCarte(null);
     setEnCours(false);
     window.location.href = `https://wa.me/${numero}?text=${encodeURIComponent(
       message
@@ -772,6 +822,54 @@ export default function Home() {
                 <p className="text-xl font-bold mt-4">
                   Total : {fcfa(total)}
                 </p>
+
+                {/* Carte cadeau */}
+                <div className="bg-white rounded-xl border border-or/30 p-3 mt-3">
+                  {carte ? (
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm">
+                        🎁 Carte <b>{carte.code}</b> appliquée :{" "}
+                        <b className="text-or-fonce">-{fcfa(reduction)}</b>
+                      </p>
+                      <button
+                        onClick={retirerCarte}
+                        className="text-sm underline text-brun shrink-0"
+                      >
+                        Retirer
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <label className="block text-sm font-medium text-brun mb-1">
+                        Carte cadeau
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          value={codeCarte}
+                          onChange={(e) => setCodeCarte(e.target.value)}
+                          placeholder="ISMA-XXXX-XXXX-XXXX"
+                          className="border border-or/40 rounded-lg flex-1 min-w-0 p-2.5 bg-white uppercase focus:outline-none focus:ring-2 focus:ring-or"
+                        />
+                        <button
+                          onClick={appliquerCarte}
+                          disabled={verifCarte}
+                          className="bg-noir text-or rounded-lg px-4 font-semibold disabled:opacity-50"
+                        >
+                          {verifCarte ? "..." : "Appliquer"}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                  {erreurCarte && (
+                    <p className="text-sm text-red-700 mt-2">{erreurCarte}</p>
+                  )}
+                </div>
+
+                {reduction > 0 && (
+                  <p className="text-xl font-bold mt-3">
+                    À payer : {fcfa(totalAPayer)}
+                  </p>
+                )}
 
                 {!userId && (
                   <div className="bg-white rounded-xl border border-or/30 p-4 mt-4">

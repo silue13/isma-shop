@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { supabase } from "../supabase";
+import FaireOffre from "./FaireOffre";
 
 type Produit = {
   id: number;
@@ -443,6 +444,14 @@ function PageProduitContenu() {
         >
           {epuise ? "Épuisé" : "Ajouter au panier"}
         </button>
+        
+        {!epuise && (
+          <FaireOffre
+            produitId={produit.id}
+            nom={produit.nom}
+            prix={produit.prix}
+          />
+        )}
 
         {stockBas && (
           <p className="text-sm mt-3 text-orange-700">

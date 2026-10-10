@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { supabase } from "../supabase";
 import Parametres from "./Parametres";
 import GestionMarques from "./GestionMarques";
+import GestionOffres from "./GestionOffres";
+import GestionCartes from "./GestionCartes";
 
 type Produit = {
   id: number;
@@ -35,6 +37,8 @@ type Commande = {
   articles: Article[];
   total: number;
   statut: string;
+  carte_code: string | null;
+  reduction: number;
   created_at: string;
 };
 
@@ -498,6 +502,9 @@ export default function Admin() {
             Produits
           </button>
         </div>
+        
+        
+        {onglet === "commandes" && <GestionOffres />}
 
         {/* ONGLET COMMANDES */}
         {onglet === "commandes" && (
@@ -554,6 +561,12 @@ export default function Admin() {
                     </p>
                     <p>📞 {c.telephone}</p>
                     <p>📍 {c.lieu}</p>
+                    {c.carte_code && c.reduction > 0 && (
+                    <p className="text-green-700">
+                        🎁 Carte {c.carte_code} : -{c.reduction} FCFA (déjà
+                        déduit du total)
+                    </p>
+                    )}
                   </div>
 
                   <div className="mt-3 border-t border-or/20 pt-3 text-sm">
@@ -653,6 +666,7 @@ export default function Admin() {
 
             {/* Marques affichées sur l'accueil */}
             <GestionMarques />
+            <GestionCartes />
 
             {/* Formulaire produit */}
             <section className="bg-white shadow rounded-2xl p-5 mb-6 border border-or/20">
