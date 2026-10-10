@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "./supabase";
+import InstallerApp from "./InstallerApp";
 import BoutonInstaller from "./BoutonInstaller";
 type Produit = {
   id: number;
