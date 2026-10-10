@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { supabase } from "./supabase";
 import BoutonInstaller from "./BoutonInstaller";
-import Link from "next/link";
 type Produit = {
   id: number;
   nom: string;
@@ -614,6 +614,8 @@ export default function Home() {
                     <img
                       src={m.image_url}
                       alt={m.nom}
+                      loading="lazy"
+                      decoding="async"
                       className="h-16 mx-auto object-contain mb-2"
                     />
                   )}
@@ -707,9 +709,7 @@ export default function Home() {
               Qualité · Style · Confiance · Exclusivité
             </p>
             <p className="mt-1">Livraison rapide · Authenticité garantie</p>
-            <p className="mt-3 text-xs">
-              © {new Date().getFullYear()} Isma&apos;Store
-            </p>
+            <p className="mt-3 text-xs">© 2026 Isma&apos;Store</p>
           </div>
         </footer>
       </main>
