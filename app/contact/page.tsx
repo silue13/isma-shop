@@ -5,7 +5,7 @@ export const metadata = { title: `Contact & Réseaux – ${BOUTIQUE.nom}` };
 
 export default function Contact() {
   const numero = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER;
-  const snap = process.env.NEXT_PUBLIC_SNAPCHAT_URL;
+  const snap = BOUTIQUE.snapchat || process.env.NEXT_PUBLIC_SNAPCHAT_URL;
   const message = "Bonjour, j'ai besoin d'aide pour choisir ou commander une paire.";
 
   return (

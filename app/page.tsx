@@ -306,7 +306,7 @@ export default function Home() {
   })).filter((c) => c.nb > 0);
 
   const numeroWhatsapp = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER;
-  const lienSnapchat = process.env.NEXT_PUBLIC_SNAPCHAT_URL;
+  const lienSnapchat = BOUTIQUE.snapchat || process.env.NEXT_PUBLIC_SNAPCHAT_URL;
 
   async function commander() {
     setErreurCommande("");

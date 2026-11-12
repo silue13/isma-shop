@@ -3,6 +3,7 @@ export const BOUTIQUE = {
   nom: "Isma'Store", // nom affiché sur le site
   raisonSociale: "Isma'Shop", // nom de l'entreprise (pages légales)
   adresse: "Grand-Bassam, Côte d'Ivoire",
+  snapchat: "https://www.snapchat.com/add/TON_PSEUDO", // remplace TON_PSEUDO par ton vrai pseudo ; mets "" pour masquer Snapchat
   // Optionnels : ils s'affichent dans les mentions légales seulement s'ils sont remplis.
   responsable: "", // nom du responsable de la publication
   registre: "", // numéro RCCM / identifiant d'entreprise
