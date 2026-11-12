@@ -6,6 +6,11 @@ import Parametres from "./Parametres";
 import GestionMarques from "./GestionMarques";
 import GestionOffres from "./GestionOffres";
 import GestionCartes from "./GestionCartes";
+import {
+  CATEGORIES_ADMIN,
+  categorieCanonique,
+  normCategorie,
+} from "../boutique";
 
 type Produit = {
   id: number;
@@ -15,9 +20,12 @@ type Produit = {
   prix_barre: number | null;
   stock: number | null;
   categorie: string | null;
+  marque: string | null;
   photos: string[];
   pointures: string[];
   couleurs: string[];
+  groupe: string | null;
+  coloris: string | null;
   actif: boolean;
 };
 
@@ -116,8 +124,11 @@ export default function Admin() {
   const [prixBarre, setPrixBarre] = useState("");
   const [stock, setStock] = useState("");
   const [categorie, setCategorie] = useState("");
+  const [marque, setMarque] = useState("");
   const [pointures, setPointures] = useState("");
   const [couleurs, setCouleurs] = useState("");
+  const [groupe, setGroupe] = useState("");
+  const [coloris, setColoris] = useState("");
   const [photosExistantes, setPhotosExistantes] = useState<string[]>([]);
   const [fichiers, setFichiers] = useState<File[]>([]);
   const [cleFichier, setCleFichier] = useState(0);
@@ -229,6 +240,9 @@ export default function Admin() {
     setCategorie("");
     setPointures("");
     setCouleurs("");
+    setGroupe("");
+    setMarque("");
+    setColoris("");
     setPhotosExistantes([]);
     setFichiers([]);
     setCleFichier((k) => k + 1);
@@ -241,9 +255,12 @@ export default function Admin() {
     setPrix(String(p.prix));
     setPrixBarre(p.prix_barre ? String(p.prix_barre) : "");
     setStock(p.stock !== null && p.stock !== undefined ? String(p.stock) : "");
-    setCategorie(p.categorie || "");
+    setCategorie(categorieCanonique(p.categorie));
     setPointures((p.pointures || []).join(", "));
     setCouleurs((p.couleurs || []).join(", "));
+    setGroupe(p.groupe || "");
+    setMarque(p.marque || "");
+    setColoris(p.coloris || "");
     setPhotosExistantes(p.photos || []);
     setFichiers([]);
     setCleFichier((k) => k + 1);
@@ -303,9 +320,12 @@ export default function Admin() {
       prix_barre: prixBarreNum,
       stock: stockNum,
       categorie,
+      marque: marque.trim() || null,
       photos: [...photosExistantes, ...urls],
       pointures: versListe(pointures),
       couleurs: versListe(couleurs),
+      groupe: groupe.trim().toLowerCase().replace(/\s+/g, "-") || null,
+      coloris: coloris.trim() || null,
     };
 
     // 2. Enregistrer
@@ -733,13 +753,35 @@ export default function Admin() {
                   />
                 </div>
                 <div>
+                  <div>
+                     <label className={etiquette}>Marque (ex. Nike)</label>
+                      <input
+                      value={marque}
+                      onChange={(e) => setMarque(e.target.value)}
+                      className={champ}
+                       />
+                  </div>
                   <label className={etiquette}>Catégorie</label>
-                  <input
-                    placeholder="Baskets"
+                  <select
                     value={categorie}
                     onChange={(e) => setCategorie(e.target.value)}
                     className={champ}
-                  />
+                  >
+                    <option value="">Automatique (selon le nom)</option>
+                    {CATEGORIES_ADMIN.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                    {categorie &&
+                      !CATEGORIES_ADMIN.some(
+                        (c) => normCategorie(c) === normCategorie(categorie)
+                      ) && (
+                        <option value={categorie}>
+                          {categorie} (ancienne valeur)
+                        </option>
+                      )}
+                  </select>
                 </div>
                 <div>
                   <label className={etiquette}>
@@ -760,6 +802,40 @@ export default function Admin() {
                     placeholder="Noir, Blanc"
                     value={couleurs}
                     onChange={(e) => setCouleurs(e.target.value)}
+                    className={champ}
+                  />
+                </div>
+                                <div>
+                  <label className={etiquette}>
+                    Groupe de coloris (même mot pour toutes les couleurs d&apos;un modèle)
+                  </label>
+                  <input
+                    list="liste-groupes"
+                    placeholder="nike-95"
+                    value={groupe}
+                    onChange={(e) => setGroupe(e.target.value)}
+                    className={champ}
+                  />
+                  <datalist id="liste-groupes">
+                    {Array.from(
+                      new Set(
+                        produits
+                          .map((p) => p.groupe)
+                          .filter((g): g is string => !!g)
+                      )
+                    ).map((g) => (
+                      <option key={g} value={g} />
+                    ))}
+                  </datalist>
+                </div>
+                <div>
+                  <label className={etiquette}>
+                    Nom du coloris de ce produit
+                  </label>
+                  <input
+                    placeholder="Blanc bleu"
+                    value={coloris}
+                    onChange={(e) => setColoris(e.target.value)}
                     className={champ}
                   />
                 </div>

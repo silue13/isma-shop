@@ -144,7 +144,7 @@ export default function Compte() {
 
   function allerALaBoutique() {
     const retour = new URLSearchParams(window.location.search).get("retour");
-    window.location.href = retour === "panier" ? "/?panier=1" : "/";
+    window.location.href = retour === "panier" ? "/panier" : "/";
   }
 
   async function sInscrire() {

@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { supabase } from "../supabase";
+import { BOUTIQUE } from "../boutique";
 
 // L'offre doit valoir au moins ce pourcentage du prix affiché (à modifier si tu veux)
-const OFFRE_MIN_POURCENT = 50;
+const OFFRE_MIN_POURCENT = BOUTIQUE.offreMinPourcent;
 
 function fcfa(n: number) {
   return `${n.toLocaleString("fr-FR")} FCFA`;
@@ -114,6 +115,12 @@ export default function FaireOffre({
                 <p className="text-sm text-brun mt-1">
                   {nom} · prix affiché {fcfa(prix)}
                 </p>
+                <a
+                  href="/regles-negociation"
+                  className="text-sm underline text-brun"
+                >
+                  Règles de négociation
+                </a>
               </div>
               <button
                 onClick={fermer}

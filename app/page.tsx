@@ -3,7 +3,26 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "./supabase";
-import BoutonInstaller from "./BoutonInstaller";
+import Hero from "./Hero";
+import Reveal from "./Reveal";
+import CategoriesVisuelles from "./CategoriesVisuelles";
+import DropsExclusifs from "./DropsExclusifs";
+import {
+  BOUTIQUE,
+  prixEn3Fois,
+  estNouveau,
+  LISTE_CATEGORIES,
+  dansCategorie,
+  lienProduit,
+  slugifier,
+} from "./boutique";
+import Promos from "./Promos";
+import FiltrePointure, { listerPointures, aPointure } from "./FiltrePointure";
+import Reassurance from "./Reassurance";
+import MoyensPaiement from "./MoyensPaiement";
+import BoutonFavori from "./BoutonFavori";
+import { useFavoris } from "./favoris";
+
 type Produit = {
   id: number;
   nom: string;
@@ -14,6 +33,9 @@ type Produit = {
   photos: string[];
   pointures: string[];
   couleurs: string[];
+  created_at: string | null;
+  categorie: string | null;
+  marque: string | null;
 };
 
 type LignePanier = {
@@ -56,6 +78,7 @@ export default function Home() {
   const [bandeau, setBandeau] = useState("");
   const [avis, setAvis] = useState<Avis[]>([]);
   const [marques, setMarques] = useState<Marque[]>([]);
+  const { ids: favoris, basculer: basculerFavori, estFavori } = useFavoris();
 
   const [panier, setPanier] = useState<LignePanier[]>([]);
   const [panierCharge, setPanierCharge] = useState(false);
@@ -67,6 +90,7 @@ export default function Home() {
   const [lieuLivraison, setLieuLivraison] = useState("");
   const [erreurCommande, setErreurCommande] = useState("");
   const [enCours, setEnCours] = useState(false);
+  const [paiement3x, setPaiement3x] = useState(false);
 
   // Carte cadeau
   const [codeCarte, setCodeCarte] = useState("");
@@ -81,6 +105,7 @@ export default function Home() {
   const [rechercheOuverte, setRechercheOuverte] = useState(false);
   const [recherche, setRecherche] = useState("");
   const [marque, setMarque] = useState("");
+  const [pointure, setPointure] = useState("");
   const [emailNews, setEmailNews] = useState("");
   const [messageNews, setMessageNews] = useState("");
   const [enCoursNews, setEnCoursNews] = useState(false);
@@ -88,7 +113,9 @@ export default function Home() {
   useEffect(() => {
     supabase
       .from("products")
-      .select("id, nom, prix, prix_barre, stock, photos, pointures, couleurs")
+      .select(
+        "id, nom, prix, prix_barre, stock, photos, pointures, couleurs, created_at, categorie, marque"
+      )
       .eq("actif", true)
       .order("created_at", { ascending: false })
       .then(({ data }) => {
@@ -118,7 +145,7 @@ export default function Home() {
 
     // Ouvrir le panier si on arrive depuis la page produit
     if (new URLSearchParams(window.location.search).get("panier") === "1") {
-      setPanierOuvert(true);
+      window.location.replace("/panier");
     }
   }, []);
 
@@ -259,16 +286,27 @@ export default function Home() {
 
   const motRecherche = recherche.trim().toLowerCase();
   const marqueMin = marque.toLowerCase();
-  const produitsAffiches = produits.filter((p) => {
-    const nom = p.nom.toLowerCase();
-    return (
-      (!marqueMin || nom.includes(marqueMin)) &&
-      (!motRecherche || nom.includes(motRecherche))
-    );
-  });
+  const produitsBase = produits.filter((p) => {
+  const nom = p.nom.toLowerCase();
+  const m = (p.marque || p.nom).toLowerCase();
+  return (
+    (!marqueMin || m.includes(marqueMin)) &&
+    (!motRecherche || nom.includes(motRecherche))
+  );
+});
+  const pointuresDispo = listerPointures(produitsBase);
+  const produitsAffiches = produitsBase.filter((p) => aPointure(p, pointure));
   const filtreActif = !!marque || !!motRecherche;
+  const promos = produits.filter(
+    (p) => !!p.prix_barre && p.prix_barre > p.prix
+  );
+  const categoriesVisibles = LISTE_CATEGORIES.map((c) => ({
+    ...c,
+    nb: produits.filter((p) => dansCategorie(c.id, p)).length,
+  })).filter((c) => c.nb > 0);
 
   const numeroWhatsapp = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER;
+  const lienSnapchat = process.env.NEXT_PUBLIC_SNAPCHAT_URL;
 
   async function commander() {
     setErreurCommande("");
@@ -333,7 +371,7 @@ export default function Home() {
     });
 
     const message =
-      `🛍️ *COMMANDE N°${data.id} - ISMA'STORE*\n\n` +
+      `🛍️ *COMMANDE N°${data.id} - ${BOUTIQUE.nom.toUpperCase()}*\n\n` +
       `👤 *Client* : ${nomLivraison.trim()}\n` +
       `📞 *Téléphone* : ${profil.telephone}\n` +
       `📍 *Livraison* : ${lieuLivraison.trim()}\n\n` +
@@ -343,10 +381,14 @@ export default function Home() {
         ? `Sous-total : ${total} FCFA\n🎁 *Carte cadeau* (${carte.code}) : -${reduction} FCFA\n`
         : "") +
       `💰 *TOTAL À PAYER : ${totalAPayer} FCFA*\n` +
+      (paiement3x && BOUTIQUE.paiementEn3Fois
+        ? `💳 *Paiement en ${BOUTIQUE.nbVersements} fois demandé* : ${BOUTIQUE.nbVersements} x ${prixEn3Fois(totalAPayer)} FCFA environ\n`
+        : "") +
       `━━━━━━━━━━━━\n\n` +
       `Merci de me confirmer la disponibilité, le prix de la livraison et le mode de paiement. 🙏`;
 
     localStorage.removeItem("panier");
+    setPaiement3x(false);
     setPanier([]);
     setCarte(null);
     setEnCours(false);
@@ -360,15 +402,29 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-creme text-noir">
-      {/* Bannière promo */}
+      {/* Bandeau promo défilant */}
       {bandeau && (
-        <div className="bg-noir text-white italic text-center text-sm font-bold py-2 px-3">
-          {bandeau}
+        <div className="marquee bg-noir text-white overflow-hidden py-2 text-sm font-bold italic">
+          <div className="marquee-piste">
+            {[0, 1].map((k) => (
+              <span
+                key={k}
+                className="flex shrink-0 items-center"
+                aria-hidden={k === 1}
+              >
+                {Array.from({ length: 4 }).map((_, j) => (
+                  <span key={j} className="px-8 whitespace-nowrap">
+                    {bandeau} <span className="text-or">✦</span>
+                  </span>
+                ))}
+              </span>
+            ))}
+          </div>
         </div>
       )}
 
       {/* En-tête */}
-      <header className="sticky top-0 z-40 bg-white border-b border-black/10">
+      <header className="sticky top-0 z-40 bg-white/85 backdrop-blur-md border-b border-black/10">
         <div className="max-w-5xl mx-auto px-4 py-3 grid grid-cols-3 items-center">
           {/* Menu hamburger */}
           <button
@@ -391,7 +447,7 @@ export default function Home() {
           <a href="/" className="justify-self-center" aria-label="Accueil">
             <img
               src="/logo-isma.jpeg"
-              alt="Isma'Store"
+              alt={BOUTIQUE.nom}
               className="w-14 h-14 rounded-full object-cover border border-black/10"
             />
           </a>
@@ -413,11 +469,23 @@ export default function Home() {
                 <path d="M20 20l-4-4" />
               </svg>
             </button>
-            <button
-              onClick={() => setPanierOuvert(true)}
-              className="relative"
-              aria-label="Panier"
-            >
+            <Link href="/favoris" className="relative" aria-label="Favoris">
+              <svg
+                viewBox="0 0 24 24"
+                className="w-6 h-6"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              >
+                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+              </svg>
+              {favoris.length > 0 && (
+                <span className="absolute -top-1 -right-2 bg-noir text-white text-xs rounded-full px-1.5">
+                  {favoris.length}
+                </span>
+              )}
+            </Link>
+            <Link href="/panier" className="relative" aria-label="Panier">
               <svg
                 viewBox="0 0 24 24"
                 className="w-7 h-7"
@@ -430,7 +498,7 @@ export default function Home() {
               <span className="absolute -top-1 -right-2 bg-noir text-white text-xs rounded-full px-1.5">
                 {nbArticles}
               </span>
-            </button>
+            </Link>
           </div>
         </div>
 
@@ -489,6 +557,20 @@ export default function Home() {
                   Nos produits
                 </a>
               </li>
+              {categoriesVisibles.length > 0 && (
+                <li>
+                  <a href="#categories" onClick={() => setMenuOuvert(false)}>
+                    Catégories
+                  </a>
+                </li>
+              )}
+              {promos.length > 0 && (
+                <li>
+                  <a href="#promos" onClick={() => setMenuOuvert(false)}>
+                    Promos
+                  </a>
+                </li>
+              )}
               {marques.length > 0 && (
                 <li>
                   <a href="#marques" onClick={() => setMenuOuvert(false)}>
@@ -497,62 +579,68 @@ export default function Home() {
                 </li>
               )}
               <li>
+                <a href="/cartes-cadeaux" onClick={() => setMenuOuvert(false)}>
+                  Cartes cadeaux
+                </a>
+              </li>
+              <li>
                 <a href="/compte" onClick={() => setMenuOuvert(false)}>
                   {userId ? "Mon compte" : "Connexion"}
                 </a>
               </li>
-              {numeroWhatsapp && (
-                <li>
-                  <a
-                    href={`https://wa.me/${numeroWhatsapp}`}
-                    onClick={() => setMenuOuvert(false)}
-                  >
-                    Nous contacter
-                  </a>
-                </li>
-              )}
+              <li>
+                <a href="/contact" onClick={() => setMenuOuvert(false)}>
+                  Nous contacter
+                </a>
+              </li>
             </ul>
           </nav>
         </div>
       )}
 
       {/* Bannière */}
-      <section>
-        <img
-          src="/logo.jpeg"
-          alt="Isma'Store - Sneakers tendance premium"
-          className="w-full max-h-80 object-cover"
-        />
-        <div className="bg-[#252a35] text-white text-center py-8 px-4">
-          <h1 className="text-2xl font-bold italic">
-            Découvre les meilleures baskets du moment
-          </h1>
-          <p className="text-white/70 mt-3 tracking-wide">ISMA&apos;STORE</p>
-          <a
-            href="#produits"
-            onClick={() => setMarque("")}
-            className="inline-block bg-white text-noir rounded-full px-8 py-3 mt-5"
-          >
-            Acheter
-          </a>
-          {marques.length > 0 && (
-            <a
-              href="#marques"
-              className="block mt-5 text-sm font-bold italic underline"
-            >
-              {"--->>> Voir toutes les marques ---<<<"}
-            </a>
-          )}
-          <div className="mt-4">
-            <BoutonInstaller />
-          </div>
-        </div>
-      </section>
+      <Hero
+        afficherMarques={marques.length > 0}
+        onAcheter={() => setMarque("")}
+      />
+
+      <Reassurance />
 
       <main className="max-w-5xl mx-auto p-4">
+        {!filtreActif && (
+          <Reveal>
+            <CategoriesVisuelles
+              produits={produits}
+              categories={categoriesVisibles}
+            />
+          </Reveal>
+        )}
+
+        {!filtreActif && (
+          <Reveal>
+            <DropsExclusifs produits={produits} />
+          </Reveal>
+        )}
+
+        {!filtreActif && promos.length > 0 && (
+          <Reveal>
+            <Promos
+              produits={promos}
+              estFavori={estFavori}
+              basculer={basculerFavori}
+            />
+          </Reveal>
+        )}
+
         <h2 id="produits" className="text-2xl font-bold mt-8 mb-4">
           Nos produits
         </h2>
+
+        <FiltrePointure
+          pointures={pointuresDispo}
+          choisie={pointure}
+          onChoisir={setPointure}
+        />
 
         {filtreActif && (
           <div className="flex flex-wrap items-center gap-2 mb-4 text-sm">
@@ -570,6 +658,7 @@ export default function Home() {
               onClick={() => {
                 setMarque("");
                 setRecherche("");
+                setPointure("");
               }}
               className="underline"
             >
@@ -581,39 +670,55 @@ export default function Home() {
         {chargement && <p className="text-brun">Chargement...</p>}
         {!chargement && produitsAffiches.length === 0 && (
           <p className="text-brun">
-            {filtreActif
+            {filtreActif || pointure
               ? "Aucun produit trouvé."
               : "Aucun produit pour le moment."}
           </p>
         )}
 
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {produitsAffiches.map((p) => {
+          {produitsAffiches.map((p, i) => {
             const s = statsProduit(p.id);
             const enPromo = !!p.prix_barre && p.prix_barre > p.prix;
             const epuise = p.stock != null && p.stock <= 0;
+            const remise = enPromo
+              ? Math.round((1 - p.prix / (p.prix_barre as number)) * 100)
+              : 0;
             return (
               <Link
                 key={p.id}
-                href={`/produit?id=${p.id}`}
+                href={lienProduit(p)}
                 prefetch
-                className="flex flex-col bg-white rounded-2xl overflow-hidden border border-or/30 shadow-sm"
+                style={{ animationDelay: `${Math.min(i, 8) * 60}ms` }}
+                className="fade-up group flex flex-col bg-white rounded-2xl overflow-hidden border border-or/30 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-or/20 hover:border-or"
               >
-                <div className="relative bg-gray-100">
-                  {p.photos?.[0] ? (
+                <div className="relative bg-gray-100 aspect-square overflow-hidden">
+                  {p.photos?.[0] && (
                     <img
                       src={p.photos[0]}
                       alt={p.nom}
                       loading="lazy"
                       decoding="async"
-                      className="w-full aspect-square object-cover"
+                      className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                     />
-                  ) : (
-                    <div className="w-full aspect-square" />
                   )}
-                  {enPromo && (
-                    <span className="absolute bottom-2 left-2 bg-noir text-white text-sm rounded-full px-3 py-1">
-                      Promotion
+                  {p.photos?.[1] && (
+                    <img
+                      src={p.photos[1]}
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                      className="absolute inset-0 w-full h-full object-cover opacity-0 transition-opacity duration-500 group-hover:opacity-100"
+                    />
+                  )}
+                  {remise > 0 && (
+                    <span className="absolute bottom-2 left-2 bg-noir text-white text-xs font-bold rounded-full px-3 py-1">
+                      -{remise}%
+                    </span>
+                  )}
+                  {estNouveau(p.created_at) && (
+                    <span className="absolute bottom-2 right-2 bg-or text-noir text-xs font-extrabold tracking-wider rounded-full px-2.5 py-1">
+                      NEW
                     </span>
                   )}
                   {epuise && (
@@ -621,17 +726,31 @@ export default function Home() {
                       Épuisé
                     </span>
                   )}
+                  <BoutonFavori
+                    actif={estFavori(p.id)}
+                    onClick={() => basculerFavori(p.id)}
+                    className="absolute top-2 left-2"
+                  />
                 </div>
                 <div className="p-4">
-                  <h3 className="font-bold text-lg">{p.nom}</h3>
-                  {enPromo && (
-                    <p className="text-gray-400 line-through text-sm mt-1">
-                      {fcfa(p.prix_barre as number)}
+                  <h3 className="font-bold text-lg leading-tight line-clamp-2">
+                    {p.nom}
+                  </h3>
+                  <div className="flex items-baseline gap-2 mt-1.5 flex-wrap">
+                    <span className="text-xl font-extrabold text-or-fonce">
+                      {fcfa(p.prix)}
+                    </span>
+                    {enPromo && (
+                      <span className="text-gray-400 line-through text-sm">
+                        {fcfa(p.prix_barre as number)}
+                      </span>
+                    )}
+                  </div>
+                  {BOUTIQUE.paiementEn3Fois && (
+                    <p className="text-xs text-brun mt-0.5">
+                      ou en {BOUTIQUE.nbVersements}x {fcfa(prixEn3Fois(p.prix))}
                     </p>
                   )}
-                  <p className="text-xl font-bold text-or-fonce mt-1">
-                    {fcfa(p.prix)}
-                  </p>
                   {s.nb > 0 && (
                     <p className="text-sm mt-1">
                       <Etoiles note={s.moyenne} />{" "}
@@ -644,50 +763,42 @@ export default function Home() {
           })}
         </div>
 
-        {/* Marques (gérées par l'admin) */}
+                {/* Marques (gérées par l'admin) */}
         {marques.length > 0 && (
-          <>
-            <h2 id="marques" className="text-2xl font-bold mt-12 mb-4">
-              Marques
-            </h2>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          <section id="marques" className="scroll-mt-20 mt-10">
+            <h2 className="text-xl font-bold mb-3">Marques</h2>
+            <div className="flex flex-wrap justify-center gap-2">
               {marques.map((m) => (
-                <button
+                <Link
                   key={m.id}
-                  onClick={() => choisirMarque(m.nom)}
-                  className={`rounded-xl py-6 px-3 text-center ${
+                  href={`/marque/${slugifier(m.nom)}`}
+                  title={`Voir la collection ${m.nom}`}
+                  className={`group flex flex-col items-center justify-center gap-1.5 h-24 rounded-xl px-2 text-center w-[calc((100%_-_1rem)/3)] sm:w-[calc((100%_-_1.5rem)/4)] md:w-[calc((100%_-_2.5rem)/6)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md ${
                     m.image_url
-                      ? "bg-white border border-or/30"
+                      ? "bg-white border border-or/30 hover:border-or"
                       : "bg-noir text-white"
                   } ${marque === m.nom ? "ring-2 ring-or" : ""}`}
                 >
                   {m.image_url && (
                     <img
                       src={m.image_url}
-                      alt={m.nom}
+                      alt=""
                       loading="lazy"
                       decoding="async"
-                      className="h-16 mx-auto object-contain mb-2"
+                      className="h-10 max-w-full w-auto object-contain transition-transform duration-300 group-hover:scale-110"
                     />
                   )}
                   <span
-                    className={`block font-bold italic tracking-wide ${
-                      m.image_url ? "text-noir" : "text-lg"
+                    className={`block w-full truncate font-bold italic leading-tight ${
+                      m.image_url ? "text-xs text-noir" : "text-sm"
                     }`}
                   >
                     {m.nom}
                   </span>
-                  <span
-                    className={`block text-xs mt-1 ${
-                      m.image_url ? "text-brun" : "text-white/60"
-                    }`}
-                  >
-                    Voir la collection
-                  </span>
-                </button>
+                </Link>
               ))}
             </div>
-          </>
+          </section>
         )}
 
         {/* Pied de page */}
@@ -712,19 +823,55 @@ export default function Home() {
                 <li>
                   <a href="/compte">{userId ? "Mon compte" : "Connexion"}</a>
                 </li>
+                <li>
+                  <a href="/cgv">Conditions de vente</a>
+                </li>
+                <li>
+                  <a href="/paiement-echelonne">
+                    Paiement en {BOUTIQUE.nbVersements} fois
+                  </a>
+                </li>
+                <li>
+                  <a href="/contact">Contact</a>
+                </li>
+                <li>
+                  <a href="/cartes-cadeaux">Cartes cadeaux</a>
+                </li>
+                <li>
+                  <a href="/mentions-legales">Mentions légales</a>
+                </li>
+                <li>
+                  <a href="/regles-negociation">Règles de négociation</a>
+                </li>
+                <li>
+                  <a href="/confidentialite">Confidentialité</a>
+                </li>
               </ul>
             </div>
 
             <div>
               <h3 className="font-bold mb-3">Contactez-nous</h3>
-              {numeroWhatsapp ? (
-                <a
-                  href={`https://wa.me/${numeroWhatsapp}`}
-                  className="inline-block bg-green-600 text-white rounded-full px-5 py-2 font-semibold"
-                >
-                  Écrire sur WhatsApp
-                </a>
-              ) : (
+              <div className="flex flex-wrap gap-2">
+                {numeroWhatsapp && (
+                  <a
+                    href={`https://wa.me/${numeroWhatsapp}`}
+                    className="inline-block bg-green-600 text-white rounded-full px-5 py-2 font-semibold hover:scale-105 transition-transform"
+                  >
+                    WhatsApp
+                  </a>
+                )}
+                {lienSnapchat && (
+                  <a
+                    href={lienSnapchat}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-block bg-yellow-300 text-noir rounded-full px-5 py-2 font-semibold hover:scale-105 transition-transform"
+                  >
+                    Snapchat
+                  </a>
+                )}
+              </div>
+              {!numeroWhatsapp && !lienSnapchat && (
                 <p className="text-brun">Contact bientôt disponible.</p>
               )}
             </div>
@@ -760,6 +907,7 @@ export default function Home() {
               Qualité · Style · Confiance · Exclusivité
             </p>
             <p className="mt-1">Livraison rapide · Authenticité garantie</p>
+            <MoyensPaiement className="justify-center mt-4" />
             <p className="mt-3 text-xs">© 2026 Isma&apos;Store</p>
           </div>
         </footer>
@@ -869,6 +1017,27 @@ export default function Home() {
                   <p className="text-xl font-bold mt-3">
                     À payer : {fcfa(totalAPayer)}
                   </p>
+                )}
+
+                {BOUTIQUE.paiementEn3Fois && totalAPayer > 0 && (
+                  <label className="flex items-start gap-3 bg-white rounded-xl border border-or/30 p-3 mt-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={paiement3x}
+                      onChange={(e) => setPaiement3x(e.target.checked)}
+                      className="mt-1 h-5 w-5 accent-or-fonce"
+                    />
+                    <span className="text-sm">
+                      <b>Je veux payer en {BOUTIQUE.nbVersements} fois</b>
+                      <span className="block text-brun">
+                        {BOUTIQUE.nbVersements} x {fcfa(prixEn3Fois(totalAPayer))}{" "}
+                        environ. Les conditions sont confirmées sur WhatsApp.{" "}
+                        <a href="/paiement-echelonne" className="underline">
+                          Détails
+                        </a>
+                      </span>
+                    </span>
+                  </label>
                 )}
 
                 {!userId && (

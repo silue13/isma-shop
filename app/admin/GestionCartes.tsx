@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "../supabase";
+import { BOUTIQUE } from "../boutique";
 
 type Carte = {
   id: number;
@@ -31,7 +32,7 @@ function fcfa(n: number) {
 
 function messageCarte(c: Carte) {
   return (
-    `🎁 Carte cadeau Isma'Store de ${fcfa(c.montant)}\n` +
+    `🎁 Carte cadeau ${BOUTIQUE.nom} de ${fcfa(c.montant)}\n` +
     `Code : ${c.code}\n` +
     `À saisir dans ton panier sur la boutique : ${window.location.origin}`
   );

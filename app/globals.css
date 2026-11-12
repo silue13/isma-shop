@@ -19,11 +19,21 @@
   }
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
+
+::selection {
+  background: #c9a24b;
+  color: #111111;
+}
+
 @theme {
   --color-creme: #f4e4d9;
   --color-noir: #111111;
@@ -44,4 +54,89 @@ body {
   --color-slate-600: #3a3a3a;
   --color-slate-700: #2b2b2b;
   --color-slate-900: #111111;
+}
+
+/* ───────── Animations de la boutique ───────── */
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(22px); }
+  to { opacity: 1; transform: none; }
+}
+.fade-up { animation: fade-up 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.d1 { animation-delay: 0.12s; }
+.d2 { animation-delay: 0.24s; }
+.d3 { animation-delay: 0.36s; }
+.d4 { animation-delay: 0.48s; }
+
+@keyframes hero-zoom {
+  from { transform: scale(1.05); }
+  to { transform: scale(1.18); }
+}
+.hero-zoom { animation: hero-zoom 18s ease-in-out infinite alternate; }
+
+@keyframes float-slow {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(20px); }
+}
+.float-slow { animation: float-slow 7s ease-in-out infinite; }
+
+@keyframes rebond {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(6px); }
+}
+.rebond { animation: rebond 1.6s ease-in-out infinite; }
+
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.marquee-piste {
+  display: flex;
+  width: max-content;
+  animation: marquee 30s linear infinite;
+}
+.marquee:hover .marquee-piste { animation-play-state: paused; }
+
+@keyframes shine {
+  from { transform: translateX(-130%) skewX(-20deg); }
+  to { transform: translateX(330%) skewX(-20deg); }
+}
+.btn-shine { position: relative; overflow: hidden; }
+.btn-shine::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 35%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
+  animation: shine 3.2s ease-in-out infinite;
+}
+
+@keyframes brille {
+  to { background-position: 200% center; }
+}
+.texte-or {
+  background: linear-gradient(90deg, #f1d98a, #c9a24b, #f1d98a);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: brille 4s linear infinite;
+}
+
+/* Apparition au défilement (composant Reveal) */
+.reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.7s ease, transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.reveal.visible {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .fade-up, .hero-zoom, .float-slow, .rebond, .marquee-piste,
+  .btn-shine::after, .texte-or { animation: none !important; }
+  .reveal { opacity: 1; transform: none; transition: none; }
 }

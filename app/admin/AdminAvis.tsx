@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../supabase";
+import { BOUTIQUE } from "../boutique";
 
 type ProduitLite = { id: number; nom: string };
 
@@ -84,7 +85,7 @@ export default function AdminAvis({ produits }: { produits: ProduitLite[] }) {
 
   async function copierMessage(c: Code) {
     const texte =
-      `Merci pour ta commande chez Isma'Store ! 🙏\n\n` +
+      `Merci pour ta commande chez ${BOUTIQUE.nom} ! 🙏\n\n` +
       `Donne ton avis sur « ${nomProduit(c.product_id)} » :\n` +
       `1. Ouvre ${window.location.origin}\n` +
       `2. Clique sur les étoiles du produit\n` +
